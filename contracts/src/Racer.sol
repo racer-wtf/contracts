@@ -193,7 +193,7 @@ contract Racer {
     }
 
     function updateTopThree(uint256 cycleId) internal {
-        // TODO this funciton is not doing what its supposed to do lol
+        // TODO this function is not doing what its supposed to do lol
         // use the `symbols` variable to iterate over each symbol and
         // then update the top three
         uint256 voteCount = symbolVotes[cycleId][symbol];
