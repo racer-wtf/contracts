@@ -15,8 +15,8 @@ devDependencies:
     specifier: ^0.6.3
     version: 0.6.3(ethers@5.7.2)(hardhat@2.15.0)(zksync-web3@0.14.3)
   '@matterlabs/hardhat-zksync-solc':
-    specifier: ^0.3.17
-    version: 0.3.17(hardhat@2.15.0)
+    specifier: ^0.4.1
+    version: 0.4.1(hardhat@2.15.0)
   '@matterlabs/hardhat-zksync-verify':
     specifier: ^0.1.8
     version: 0.1.8(@nomiclabs/hardhat-etherscan@3.1.7)(hardhat@2.15.0)
@@ -602,6 +602,22 @@ packages:
       chalk: 4.1.2
       dockerode: 3.3.5
       hardhat: 2.15.0(ts-node@10.9.1)(typescript@5.1.3)
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+    dev: true
+
+  /@matterlabs/hardhat-zksync-solc@0.4.1(hardhat@2.15.0):
+    resolution: {integrity: sha512-fdlGf/2yZR5ihVNc2ubea1R/nNFXRONL29Fgz5FwB3azB13rPb76fkQgcFIg9zSufHsEy6zUUT029NkxLNA9Sw==}
+    peerDependencies:
+      hardhat: ^2.14.0
+    dependencies:
+      '@nomiclabs/hardhat-docker': 2.0.2
+      chalk: 4.1.2
+      dockerode: 3.3.5
+      fs-extra: 11.1.1
+      hardhat: 2.15.0(ts-node@10.9.1)(typescript@5.1.3)
+      semver: 7.5.2
     transitivePeerDependencies:
       - encoding
       - supports-color
@@ -3836,6 +3852,15 @@ packages:
   /fs-extra@10.1.0:
     resolution: {integrity: sha512-oRXApq54ETRj4eMiFzGnHWGy+zo5raudjuxN0b8H7s/RU2oW0Wvsx9O0ACRN/kRq9E8Vu/ReskGB5o3ji+FzHQ==}
     engines: {node: '>=12'}
+    dependencies:
+      graceful-fs: 4.2.11
+      jsonfile: 6.1.0
+      universalify: 2.0.0
+    dev: true
+
+  /fs-extra@11.1.1:
+    resolution: {integrity: sha512-MGIE4HOvQCeUCzmlHs0vXpih4ysz4wg9qiSAu6cd42lVwPbTM1TjV7RusoyQqMmk/95gdQZX72u+YW+c3eEpFQ==}
+    engines: {node: '>=14.14'}
     dependencies:
       graceful-fs: 4.2.11
       jsonfile: 6.1.0
