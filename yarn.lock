@@ -974,10 +974,10 @@
     "@truffle/error" "^0.2.1"
     colors "1.4.0"
 
-"@truffle/compile-solidity@^6.0.73":
-  version "6.0.73"
-  resolved "https://registry.yarnpkg.com/@truffle/compile-solidity/-/compile-solidity-6.0.73.tgz#eaaad20dc100bb054035bfa44a5031ef26eae225"
-  integrity sha512-nK7QJTWsCcv7Gxqbq5kDU2WkSukaEf/YIq5Vl3qTL/2O5wtISEl4qoHtgJ31/fxqMuxNJMmMJDkPUXgfjOiNcA==
+"@truffle/compile-solidity@^6.0.74":
+  version "6.0.74"
+  resolved "https://registry.yarnpkg.com/@truffle/compile-solidity/-/compile-solidity-6.0.74.tgz#a6e56334f47a1685ed71b80c9830a062fc2049e6"
+  integrity sha512-PbI8U0RPO+7D5DI9SQDj78ExsXVn7clcUyKB7I+JIO9VMSBA2H2VMaUnPGAmQeGqhFW1DqOXzo4aINTbTHRZtA==
   dependencies:
     "@truffle/compile-common" "^0.9.6"
     "@truffle/config" "^1.3.58"
@@ -1018,14 +1018,14 @@
     debug "^4.3.1"
     glob "^7.1.6"
 
-"@truffle/dashboard-hardhat-plugin@^0.2.7":
-  version "0.2.9"
-  resolved "https://registry.yarnpkg.com/@truffle/dashboard-hardhat-plugin/-/dashboard-hardhat-plugin-0.2.9.tgz#a957210a7f1688340023fa36f9368aa7c586ff40"
-  integrity sha512-jN1hwtINZIKi51A8A663HFhQbNzu0Qj+3Mde148PTg/4Vutl3l+jstCTDjtTQ+68Ee81L2Q0Kzp22ALkGA++tA==
+"@truffle/dashboard-hardhat-plugin@^0.2.10":
+  version "0.2.10"
+  resolved "https://registry.yarnpkg.com/@truffle/dashboard-hardhat-plugin/-/dashboard-hardhat-plugin-0.2.10.tgz#3309908cd68c4ed3baa895b0499ebb4a383761ea"
+  integrity sha512-OCYd79HoMwySg0uLTwOpiG7ZmTSvkQ8gokojH/489SagnMYeFw1ru6gOzCNlNn7ln2xktUgdowaCJVZJWMde5g==
   dependencies:
     "@truffle/config" "^1.3.58"
     "@truffle/dashboard-message-bus-client" "^0.1.11"
-    "@truffle/from-hardhat" "^0.2.14"
+    "@truffle/from-hardhat" "^0.2.15"
 
 "@truffle/dashboard-message-bus-client@^0.1.11":
   version "0.1.11"
@@ -1068,13 +1068,13 @@
   resolved "https://registry.yarnpkg.com/@truffle/expect/-/expect-0.1.6.tgz#9709acd3d39b6bbe6c5f09f574332733a444a00f"
   integrity sha512-MQVAuScNiy0vcXVxJatW490UvVvXOcVBYnXIjsslE5CMKdGfMtxRegGZN+9AZ9PX9vpcFZs43HaVdN7YM6AhOA==
 
-"@truffle/from-hardhat@^0.2.14":
-  version "0.2.14"
-  resolved "https://registry.yarnpkg.com/@truffle/from-hardhat/-/from-hardhat-0.2.14.tgz#445f154b41800be0b576cf2c30de3ee2bed44757"
-  integrity sha512-PkggIKixWoG5efcABw57vRbGjyMiQ9aRaTo9ujf4+EaC1Woxb+hMVd1It8T3rfHPHgttJsEzNwaUXmrv4NhYNw==
+"@truffle/from-hardhat@^0.2.15":
+  version "0.2.15"
+  resolved "https://registry.yarnpkg.com/@truffle/from-hardhat/-/from-hardhat-0.2.15.tgz#49f5289f454a656c786b330aa94d587183ec28b8"
+  integrity sha512-xHcuEuADxbx2i6zL9wxZ6XgENz2wL5e65SQ2um/gQFo5FTyH3GGSBwF9VyHFCx6AxcW876UyuoOhi2iwWS5H4w==
   dependencies:
     "@truffle/compile-common" "^0.9.6"
-    "@truffle/compile-solidity" "^6.0.73"
+    "@truffle/compile-solidity" "^6.0.74"
     "@truffle/config" "^1.3.58"
     debug "^4.3.1"
     find-up "^2.1.0"

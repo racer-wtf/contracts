@@ -42,8 +42,8 @@ devDependencies:
     specifier: ^1.7.7
     version: 1.7.7(hardhat@2.15.0)(ts-node@10.9.1)(typescript@5.1.3)
   '@truffle/dashboard-hardhat-plugin':
-    specifier: ^0.2.7
-    version: 0.2.7(hardhat@2.15.0)
+    specifier: ^0.2.10
+    version: 0.2.10(hardhat@2.15.0)
   '@typechain/ethers-v5':
     specifier: ^10.2.1
     version: 10.2.1(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2)(ethers@5.7.2)(typechain@8.2.0)(typescript@5.1.3)
@@ -1196,8 +1196,8 @@ packages:
       colors: 1.4.0
     dev: true
 
-  /@truffle/compile-solidity@6.0.72:
-    resolution: {integrity: sha512-DpjSM1JpUZrCzsyfFAJcPOmS3rBeaV0ROYYJsKVvdCFWw9RKyXG8MDH2SO3wsGGSCJK5xL7VUcahagqHDagf7w==}
+  /@truffle/compile-solidity@6.0.74:
+    resolution: {integrity: sha512-PbI8U0RPO+7D5DI9SQDj78ExsXVn7clcUyKB7I+JIO9VMSBA2H2VMaUnPGAmQeGqhFW1DqOXzo4aINTbTHRZtA==}
     dependencies:
       '@truffle/compile-common': 0.9.6
       '@truffle/config': 1.3.58
@@ -1213,7 +1213,7 @@ packages:
       node-abort-controller: 3.1.1
       original-require: 1.0.1
       require-from-string: 2.0.2
-      semver: 7.3.7
+      semver: 7.5.2
       solc: 0.8.20(debug@4.3.4)
     transitivePeerDependencies:
       - bufferutil
@@ -1249,14 +1249,14 @@ packages:
       - supports-color
     dev: true
 
-  /@truffle/dashboard-hardhat-plugin@0.2.7(hardhat@2.15.0):
-    resolution: {integrity: sha512-hgYGJwooV0fpWyyCuzpR2vifDLOHmVld6rP3gLELZ69XbRyqza0HZ8wrLqpbK2jER4nNpKAjmLmhS0y8sCLucg==}
+  /@truffle/dashboard-hardhat-plugin@0.2.10(hardhat@2.15.0):
+    resolution: {integrity: sha512-OCYd79HoMwySg0uLTwOpiG7ZmTSvkQ8gokojH/489SagnMYeFw1ru6gOzCNlNn7ln2xktUgdowaCJVZJWMde5g==}
     peerDependencies:
       hardhat: ^2.0.0
     dependencies:
       '@truffle/config': 1.3.58
       '@truffle/dashboard-message-bus-client': 0.1.11
-      '@truffle/from-hardhat': 0.2.13
+      '@truffle/from-hardhat': 0.2.15
       hardhat: 2.15.0(ts-node@10.9.1)(typescript@5.1.3)
     transitivePeerDependencies:
       - bufferutil
@@ -1309,15 +1309,15 @@ packages:
     resolution: {integrity: sha512-MQVAuScNiy0vcXVxJatW490UvVvXOcVBYnXIjsslE5CMKdGfMtxRegGZN+9AZ9PX9vpcFZs43HaVdN7YM6AhOA==}
     dev: true
 
-  /@truffle/from-hardhat@0.2.13:
-    resolution: {integrity: sha512-/yCUCfI7BhwoS6o5NMYB5z9mk8GHHGK76OugAs471M/7zShBfRA5LTOXZqok3r9wCjTr2mhPzyGdLPaXhy8o3Q==}
+  /@truffle/from-hardhat@0.2.15:
+    resolution: {integrity: sha512-xHcuEuADxbx2i6zL9wxZ6XgENz2wL5e65SQ2um/gQFo5FTyH3GGSBwF9VyHFCx6AxcW876UyuoOhi2iwWS5H4w==}
     dependencies:
       '@truffle/compile-common': 0.9.6
-      '@truffle/compile-solidity': 6.0.72
+      '@truffle/compile-solidity': 6.0.74
       '@truffle/config': 1.3.58
       debug: 4.3.4(supports-color@8.1.1)
       find-up: 2.1.0
-      semver: 5.7.1
+      semver: 7.5.2
     transitivePeerDependencies:
       - bufferutil
       - encoding
@@ -6337,14 +6337,6 @@ packages:
   /semver@6.3.0:
     resolution: {integrity: sha512-b39TBaTSfV6yBrapU89p5fKekE2m/NwnDocOVruQFS1/veMgdzuPcnOM34M6CwxW8jH/lxEa5rBoDeUwu5HHTw==}
     hasBin: true
-    dev: true
-
-  /semver@7.3.7:
-    resolution: {integrity: sha512-QlYTucUYOews+WeEujDoEGziz4K6c47V/Bd+LjSSYcA94p+DmINdf7ncaUinThfvZyu13lN9OY1XDxt8C0Tw0g==}
-    engines: {node: '>=10'}
-    hasBin: true
-    dependencies:
-      lru-cache: 6.0.0
     dev: true
 
   /semver@7.5.2:
