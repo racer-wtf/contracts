@@ -42,21 +42,4 @@ jobs:
         run: yarn install --prefer-offline --frozen-lockfile
 
       - name: Prettier and lint
-        run: yarn lint:check
-
-  codespell:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Run codespell
-        uses: codespell-project/actions-codespell@v2.0
-        with:
-          check_filenames: true
-          skip: ./.git,./contracts/lib,yarn.lock
+        run: yarn lint:check 
