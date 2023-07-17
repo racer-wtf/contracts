@@ -2,9 +2,11 @@
 pragma solidity ^0.8.20;
 
 import "../lib/abdk-libraries-solidity/ABDKMath64x64.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 
 contract Racer {
     using ABDKMath64x64 for int128;
+    using Counters for Counters.Counter;
 
     struct Vote {
         // vote id (restricted to current cycle)
@@ -35,10 +37,18 @@ contract Racer {
         // the address of the cycle creator
         address creator;
         // vote id counter for this cycle
-        uint256 voteIdCounter;
+        Counters.Counter voteIdCounter;
         // flag for checking existance of cycle
         bool exists;
     }
+
+    event CycleCreated(
+        address indexed creator,
+        uint256 indexed id,
+        uint256 startingBlock,
+        uint256 blockLength,
+        uint256 votePrice
+    );
 
     event VotePlaced(
         address indexed placer,
@@ -49,10 +59,12 @@ contract Racer {
     );
 
     // cycle id -> symbol -> votes array
-    mapping (uint256 => mapping(bytes4 => uint256[])) votesMeta;
-    
+    mapping(uint256 => mapping(bytes4 => uint256[])) votesMeta;
+
     // cycle id -> cycle
-    mapping (uint256 => Cycle) cycles;
+    mapping(uint256 => Cycle) cycles;
+
+    Counters.Counter cycleIdCounter;
 
     // cycle id -> vote id -> vote
     mapping(uint256 => mapping(uint256 => Vote)) votes;
@@ -65,19 +77,62 @@ contract Racer {
         bytes4 symbol
     ) public payable returns (uint256) {
         require(cycles[cycleId].exists, "cycle doesn't exist");
-        require(cycles[cycleId].startingBlock <= block.number, "cycle hasn't started yet");
+        require(
+            cycles[cycleId].startingBlock <= block.number,
+            "cycle hasn't started yet"
+        );
         uint256 amount = msg.value;
-        require(amount >= cycles[cycleId].votePrice, "paid amount is not enough for this cycle");
-        uint256 voteId = cycles[cycleId].voteIdCounter;
-        voteId++;
-        cycles[cycleId].voteIdCounter = voteId;
-        votes[cycleId][voteId] = Vote(voteId, symbol, amount, msg.sender, false, cycleId, block.number);
+        require(
+            amount >= cycles[cycleId].votePrice,
+            "paid amount is not enough for this cycle"
+        );
+        Cycle storage cycle = cycles[cycleId];
+        cycle.voteIdCounter.increment();
+        uint256 voteId = cycle.voteIdCounter.current();
+        votes[cycleId][voteId] = Vote(
+            voteId,
+            symbol,
+            amount,
+            msg.sender,
+            false,
+            cycleId,
+            block.number
+        );
         votesMeta[cycleId][symbol].push(voteId);
         emit VotePlaced(msg.sender, voteId, cycleId, symbol, amount);
         uint256 refundAmount = amount - cycles[cycleId].votePrice;
         if (refundAmount > 0) {
-            assert(payable(msg.sender).send(refundAmount));
+            payable(msg.sender).transfer(refundAmount);
         }
         return voteId;
+    }
+
+    function createCycle(
+        uint256 startingBlock,
+        uint256 blockLength,
+        uint256 votePrice,
+        uint256 multiplier
+    ) public returns (uint256) {
+        cycleIdCounter.increment();
+
+        uint256 cycleId = cycleIdCounter.current();
+        cycles[cycleId] = Cycle(
+            startingBlock,
+            startingBlock + blockLength,
+            votePrice,
+            multiplier,
+            msg.sender,
+            Counters.Counter(0),
+            true
+        );
+
+        emit CycleCreated(
+            msg.sender,
+            cycleId,
+            startingBlock,
+            blockLength,
+            votePrice
+        );
+        return cycleId;
     }
 }
