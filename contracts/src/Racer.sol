@@ -2,11 +2,13 @@
 pragma solidity ^0.8.20;
 
 import "../lib/abdk-libraries-solidity/ABDKMath64x64.sol";
+import "../lib/Bytes4Set.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
 contract Racer {
     using ABDKMath64x64 for int128;
     using Counters for Counters.Counter;
+    using Bytes4Set for Bytes4Set.Set;
 
     struct Vote {
         // vote id (restricted to current cycle)
@@ -42,6 +44,12 @@ contract Racer {
         bool exists;
     }
 
+    struct Symbol {
+        bytes4 symbol;
+        uint256 voteCount;
+        uint pointer;
+    }
+
     event CycleCreated(
         address indexed creator,
         uint256 indexed id,
@@ -60,6 +68,13 @@ contract Racer {
 
     // cycle id -> symbol -> votes array
     mapping(uint256 => mapping(bytes4 => uint256[])) votesMeta;
+
+    // store here top three most voted symbols (for caching purposes)
+    // we use pointers to the symbol set items
+    mapping(uint256 => uint[]) topThreeSymbols;
+
+    // cycle id -> symbols people voted for
+    mapping(uint256 => Bytes4Set.Set) symbols;
 
     // cycle id -> cycle
     mapping(uint256 => Cycle) cycles;
@@ -83,8 +98,8 @@ contract Racer {
         );
         uint256 amount = msg.value;
         require(
-            amount >= cycles[cycleId].votePrice,
-            "paid amount is not enough for this cycle"
+            amount == cycles[cycleId].votePrice,
+            "incorrect amount for this cycle"
         );
         Cycle storage cycle = cycles[cycleId];
         cycle.voteIdCounter.increment();
@@ -99,12 +114,45 @@ contract Racer {
             block.number
         );
         votesMeta[cycleId][symbol].push(voteId);
-        emit VotePlaced(msg.sender, voteId, cycleId, symbol, amount);
-        uint256 refundAmount = amount - cycles[cycleId].votePrice;
-        if (refundAmount > 0) {
-            payable(msg.sender).transfer(refundAmount);
+        if(!symbols[cycleId].exists(symbol)) {
+            symbols[cycleId].insert(symbol);
         }
+
+        updateTopThreeSymbols(cycleId);
+
+        emit VotePlaced(msg.sender, voteId, cycleId, symbol, amount);
         return voteId;
+    }
+
+    // update top three most voted symbols
+    function updateTopThreeSymbols(uint256 cycleId) {
+        bool memory init = topThreeSymbols[cycleId].length != 0;
+        Symbol memory first = Symbol("", 0, 0);
+        Symbol memory second = Symbol("", 0, 0);
+        Symbol memory third = Symbol("", 0, 0);
+        for (uint i = 0; i < symbols[cycleId].count(); i++) {
+            bytes4 storage symbol = symbols[cycleId].get(i);
+            uint256 memory voteCount = votesMeta[cycleId][symbol].length;
+            if (voteCount > first.voteCount) {
+                second = first;
+                first = Symbol(symbol, voteCount, i);
+            } else if (voteCount > second.voteCount) {
+                third = second;
+                second = Symbol(symbol, voteCount, i);
+            } else if (voteCount > third.voteCount) {
+                third = Symbol(symbol, voteCount, i);
+            }
+        }
+
+        if (init) {
+            topThreeSymbols[cycleId].push(first.pointer);
+            topThreeSymbols[cycleId].push(second.pointer);
+            topThreeSymbols[cycleId].push(third.pointer);
+        } else {
+            topThreeSymbols[cycleId][0] = first.pointer;
+            topThreeSymbols[cycleId][1] = second.pointer;
+            topThreeSymbols[cycleId][2] = third.pointer;
+        }
     }
 
     function createCycle(
@@ -134,5 +182,9 @@ contract Racer {
             votePrice
         );
         return cycleId;
+    }
+
+    function calculateNormalizedFactor() public returns (uint256) {
+
     }
 }
