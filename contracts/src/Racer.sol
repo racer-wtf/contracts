@@ -248,6 +248,9 @@ contract Racer {
             normalizationFactor = ABDKMath64x64.add(normalizationFactor, rewardPoint);
         }
 
+        normalizationFactor = ABDKMath64x64.div(normalizationFactor, ABDKMath64x64.fromUInt(cycle.voteIdCounter.current()));
+
         return normalizationFactor;
     }
 }
+
