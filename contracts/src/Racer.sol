@@ -196,6 +196,7 @@ contract Racer {
         uint256 cycleId
     ) public view returns (int128) {
         require(cycles[cycleId].exists, "invalid cycle id");
+        require(cycles[cycleId].endingBlock < block.number, "cannot calculate normalization factor while cycle is not ended");
         Cycle storage cycle = cycles[cycleId];
 
         int128 normalizationFactor = 0;
@@ -204,53 +205,94 @@ contract Racer {
         for (
             uint i = 0;
             i <
-            votesMeta[cycleId][symbols[cycleId].get(topThreeSymbols[cycleId][0])].length;
+            votesMeta[cycleId][
+                symbols[cycleId].get(topThreeSymbols[cycleId][0])
+            ].length;
             i++
         ) {
             Vote storage vote = votes[cycleId][i];
-            int128 timeliness = ABDKMath64x64.divu(
-                vote.placedInBlock - cycle.startingBlock,
-                cycle.endingBlock - cycle.startingBlock
+            int128 rewardPoint = calculatePoint(cycle, vote, 1);
+            normalizationFactor = ABDKMath64x64.add(
+                normalizationFactor,
+                rewardPoint
             );
-            int128 rewardPoint = ABDKMath64x64.pow(ABDKMath64x64.sub(timeliness, 1), 2);
-            normalizationFactor = ABDKMath64x64.add(normalizationFactor, rewardPoint);
         }
 
         // summing points from the second symbol
         for (
             uint i = 0;
             i <
-            votesMeta[cycleId][symbols[cycleId].get(topThreeSymbols[cycleId][1])].length;
+            votesMeta[cycleId][
+                symbols[cycleId].get(topThreeSymbols[cycleId][1])
+            ].length;
             i++
         ) {
             Vote storage vote = votes[cycleId][i];
-            int128 timeliness = ABDKMath64x64.divu(
-                vote.placedInBlock - cycle.startingBlock,
-                cycle.endingBlock - cycle.startingBlock
+            int128 rewardPoint = calculatePoint(cycle, vote, 2);
+            normalizationFactor = ABDKMath64x64.add(
+                normalizationFactor,
+                rewardPoint
             );
-            int128 rewardPoint = ABDKMath64x64.pow(ABDKMath64x64.sub(ABDKMath64x64.div(timeliness, 2), ABDKMath64x64.div(1, 2)), 2);
-            normalizationFactor = ABDKMath64x64.add(normalizationFactor, rewardPoint);
         }
 
         // summing points from the third symbol
         for (
             uint i = 0;
             i <
-            votesMeta[cycleId][symbols[cycleId].get(topThreeSymbols[cycleId][2])].length;
+            votesMeta[cycleId][
+                symbols[cycleId].get(topThreeSymbols[cycleId][2])
+            ].length;
             i++
         ) {
             Vote storage vote = votes[cycleId][i];
-            int128 timeliness = ABDKMath64x64.divu(
-                vote.placedInBlock - cycle.startingBlock,
-                cycle.endingBlock - cycle.startingBlock
+            int128 rewardPoint = calculatePoint(cycle, vote, 3);
+            normalizationFactor = ABDKMath64x64.add(
+                normalizationFactor,
+                rewardPoint
             );
-            int128 rewardPoint = ABDKMath64x64.pow(ABDKMath64x64.sub(ABDKMath64x64.div(timeliness, 3), ABDKMath64x64.div(1, 3)), 2);
-            normalizationFactor = ABDKMath64x64.add(normalizationFactor, rewardPoint);
         }
 
-        normalizationFactor = ABDKMath64x64.div(normalizationFactor, ABDKMath64x64.fromUInt(cycle.voteIdCounter.current()));
+        normalizationFactor = ABDKMath64x64.div(
+            normalizationFactor,
+            ABDKMath64x64.fromUInt(cycle.voteIdCounter.current())
+        );
 
         return normalizationFactor;
     }
-}
 
+    function calculatePoint(
+        Cycle storage cycle,
+        Vote storage vote,
+        uint place
+    ) internal view returns (int128) {
+        require(place >= 1 && place <= 3, "incorrect place value");
+        int128 timeliness = ABDKMath64x64.divu(
+            vote.placedInBlock - cycle.startingBlock,
+            cycle.endingBlock - cycle.startingBlock
+        );
+        int128 rewardPoint = ABDKMath64x64.fromUInt(0);
+        if (place == 1) {
+            rewardPoint = ABDKMath64x64.pow(
+                ABDKMath64x64.sub(timeliness, 1),
+                2
+            );
+        } else if (place == 2) {
+            rewardPoint = ABDKMath64x64.pow(
+                ABDKMath64x64.sub(
+                    ABDKMath64x64.div(timeliness, 2),
+                    ABDKMath64x64.div(1, 2)
+                ),
+                2
+            );
+        } else if (place == 3) {
+            rewardPoint = ABDKMath64x64.pow(
+                ABDKMath64x64.sub(
+                    ABDKMath64x64.div(timeliness, 3),
+                    ABDKMath64x64.div(1, 3)
+                ),
+                2
+            );
+        }
+        return rewardPoint;
+    }
+}
