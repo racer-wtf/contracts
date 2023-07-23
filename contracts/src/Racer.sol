@@ -15,8 +15,6 @@ contract Racer {
         uint256 voteId;
         // four byte symbol of the vote
         bytes4 symbol;
-        // amount of votes the player wants to place
-        uint256 amount;
         // the address that placed the vote
         address placer;
         // represents if the reward was claimed or not
@@ -40,8 +38,14 @@ contract Racer {
         address creator;
         // vote id counter for this cycle
         Counters.Counter voteIdCounter;
-        // flag for checking existance of cycle
+        // flag for checking existence of cycle
         bool exists;
+        // current reward pool balance
+        uint256 balance;
+        // the final base reward
+        int128 baseReward;
+        // the final normalization factor for the cycle
+        int128 normalizationFactor;
     }
 
     struct Symbol {
@@ -66,7 +70,7 @@ contract Racer {
         uint256 amount
     );
 
-    // cycle id -> symbol -> votes array
+    // cycle id -> symbol -> vote id array
     mapping(uint256 => mapping(bytes4 => uint256[])) votesMeta;
 
     // store here top three most voted symbols (for caching purposes)
@@ -99,7 +103,7 @@ contract Racer {
         uint256 amount = msg.value;
         require(
             amount == cycles[cycleId].votePrice,
-            "incorrect amount for this cycle"
+            "incorrect sent amount for this cycle"
         );
         Cycle storage cycle = cycles[cycleId];
         cycle.voteIdCounter.increment();
@@ -107,16 +111,16 @@ contract Racer {
         votes[cycleId][voteId] = Vote(
             voteId,
             symbol,
-            amount,
             msg.sender,
             false,
             cycleId,
             block.number
         );
         votesMeta[cycleId][symbol].push(voteId);
-        if(!symbols[cycleId].exists(symbol)) {
+        if (!symbols[cycleId].exists(symbol)) {
             symbols[cycleId].insert(symbol);
         }
+        cycle.balance += cycle.votePrice;
 
         updateTopThreeSymbols(cycleId);
 
@@ -125,14 +129,14 @@ contract Racer {
     }
 
     // update top three most voted symbols
-    function updateTopThreeSymbols(uint256 cycleId) {
-        bool memory init = topThreeSymbols[cycleId].length != 0;
+    function updateTopThreeSymbols(uint256 cycleId) internal {
+        bool init = topThreeSymbols[cycleId].length != 0;
         Symbol memory first = Symbol("", 0, 0);
         Symbol memory second = Symbol("", 0, 0);
         Symbol memory third = Symbol("", 0, 0);
         for (uint i = 0; i < symbols[cycleId].count(); i++) {
-            bytes4 storage symbol = symbols[cycleId].get(i);
-            uint256 memory voteCount = votesMeta[cycleId][symbol].length;
+            bytes4 symbol = symbols[cycleId].get(i);
+            uint256 voteCount = votesMeta[cycleId][symbol].length;
             if (voteCount > first.voteCount) {
                 second = first;
                 first = Symbol(symbol, voteCount, i);
@@ -171,7 +175,10 @@ contract Racer {
             multiplier,
             msg.sender,
             Counters.Counter(0),
-            true
+            true,
+            0,
+            0,
+            0
         );
 
         emit CycleCreated(
@@ -184,7 +191,63 @@ contract Racer {
         return cycleId;
     }
 
-    function calculateNormalizedFactor() public returns (uint256) {
+    // WARN! This function should be called only once cuz it's very expensive on gas
+    function calculateNormalizedFactor(
+        uint256 cycleId
+    ) public view returns (int128) {
+        require(cycles[cycleId].exists, "invalid cycle id");
+        Cycle storage cycle = cycles[cycleId];
 
+        int128 normalizationFactor = 0;
+
+        // summing points from the first symbol
+        for (
+            uint i = 0;
+            i <
+            votesMeta[cycleId][symbols[cycleId].get(topThreeSymbols[cycleId][0])].length;
+            i++
+        ) {
+            Vote storage vote = votes[cycleId][i];
+            int128 timeliness = ABDKMath64x64.divu(
+                vote.placedInBlock - cycle.startingBlock,
+                cycle.endingBlock - cycle.startingBlock
+            );
+            int128 rewardPoint = ABDKMath64x64.pow(ABDKMath64x64.sub(timeliness, 1), 2);
+            normalizationFactor = ABDKMath64x64.add(normalizationFactor, rewardPoint);
+        }
+
+        // summing points from the second symbol
+        for (
+            uint i = 0;
+            i <
+            votesMeta[cycleId][symbols[cycleId].get(topThreeSymbols[cycleId][1])].length;
+            i++
+        ) {
+            Vote storage vote = votes[cycleId][i];
+            int128 timeliness = ABDKMath64x64.divu(
+                vote.placedInBlock - cycle.startingBlock,
+                cycle.endingBlock - cycle.startingBlock
+            );
+            int128 rewardPoint = ABDKMath64x64.pow(ABDKMath64x64.sub(ABDKMath64x64.div(timeliness, 2), ABDKMath64x64.div(1, 2)), 2);
+            normalizationFactor = ABDKMath64x64.add(normalizationFactor, rewardPoint);
+        }
+
+        // summing points from the third symbol
+        for (
+            uint i = 0;
+            i <
+            votesMeta[cycleId][symbols[cycleId].get(topThreeSymbols[cycleId][2])].length;
+            i++
+        ) {
+            Vote storage vote = votes[cycleId][i];
+            int128 timeliness = ABDKMath64x64.divu(
+                vote.placedInBlock - cycle.startingBlock,
+                cycle.endingBlock - cycle.startingBlock
+            );
+            int128 rewardPoint = ABDKMath64x64.pow(ABDKMath64x64.sub(ABDKMath64x64.div(timeliness, 3), ABDKMath64x64.div(1, 3)), 2);
+            normalizationFactor = ABDKMath64x64.add(normalizationFactor, rewardPoint);
+        }
+
+        return normalizationFactor;
     }
 }
