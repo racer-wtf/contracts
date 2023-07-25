@@ -103,7 +103,7 @@ contract Racer {
         uint256 amount = msg.value;
         require(
             amount == cycles[cycleId].votePrice,
-            "incorrect sent amount for this cycle"
+            "incorrect wei amount for this cycle"
         );
         Cycle storage cycle = cycles[cycleId];
         cycle.voteIdCounter.increment();
@@ -196,7 +196,10 @@ contract Racer {
         uint256 cycleId
     ) public view returns (int128) {
         require(cycles[cycleId].exists, "invalid cycle id");
-        require(cycles[cycleId].endingBlock < block.number, "cannot calculate normalization factor while cycle is not ended");
+        require(
+            cycles[cycleId].endingBlock < block.number,
+            "cannot calculate normalization factor while cycle is not ended"
+        );
         Cycle storage cycle = cycles[cycleId];
 
         int128 normalizationFactor = 0;
@@ -260,23 +263,31 @@ contract Racer {
         return normalizationFactor;
     }
 
+    function getVoteTimeliness(
+        Cycle storage cycle,
+        Vote storage vote
+    ) internal view returns (int128) {
+        return
+            ABDKMath64x64.divu(
+                vote.placedInBlock - cycle.startingBlock,
+                cycle.endingBlock - cycle.startingBlock
+            );
+    }
+
     function calculatePoint(
         Cycle storage cycle,
         Vote storage vote,
         uint place
     ) internal view returns (int128) {
         require(place >= 1 && place <= 3, "incorrect place value");
-        int128 timeliness = ABDKMath64x64.divu(
-            vote.placedInBlock - cycle.startingBlock,
-            cycle.endingBlock - cycle.startingBlock
-        );
+        int128 timeliness = getVoteTimeliness(cycle, vote);
         int128 rewardPoint = ABDKMath64x64.fromUInt(0);
-        if (place == 1) {
+        if (place == 0) {
             rewardPoint = ABDKMath64x64.pow(
                 ABDKMath64x64.sub(timeliness, 1),
                 2
             );
-        } else if (place == 2) {
+        } else if (place == 1) {
             rewardPoint = ABDKMath64x64.pow(
                 ABDKMath64x64.sub(
                     ABDKMath64x64.div(timeliness, 2),
@@ -284,7 +295,7 @@ contract Racer {
                 ),
                 2
             );
-        } else if (place == 3) {
+        } else if (place == 2) {
             rewardPoint = ABDKMath64x64.pow(
                 ABDKMath64x64.sub(
                     ABDKMath64x64.div(timeliness, 3),
@@ -294,5 +305,37 @@ contract Racer {
             );
         }
         return rewardPoint;
+    }
+
+    function getBaseReward(Cycle storage cycle) internal view returns (int128) {
+        return ABDKMath64x64.divu(cycle.balance, cycle.voteIdCounter.current());
+    }
+
+    function claimReward(uint256 cycleId, uint256 voteId) public {
+        Cycle storage cycle = cycles[cycleId];
+        require(block.number > cycle.endingBlock, "cycle has not ended yet");
+        Vote storage vote = votes[cycleId][voteId];
+        bool topThreeSymbolsVote = false;
+        uint place;
+        for (uint i = 0; i < 3; i++) {
+            bytes4 symbol = symbols[cycleId].get(topThreeSymbols[cycleId][i]);
+            if (symbol == vote.symbol) {
+                topThreeSymbolsVote = true;
+                place = i;
+                break;
+            }
+        }
+        require(topThreeSymbolsVote, "your vote is not for top three symbols");
+        // TODO implement restrict on claiming rewards after 1/3 of time for 2nd place
+        // and 2/3 of timeliness for 3rd place for regular voter
+        if (cycle.normalizationFactor == 0) {
+            cycle.normalizationFactor = calculateNormalizedFactor(cycleId); // this is expensive
+        }
+        if(cycle.baseReward == 0) {
+            cycle.baseReward = getBaseReward(cycle);
+        }
+        int128 curvePoint = calculatePoint(cycle, vote, place);
+        int128 normalizedReward = ABDKMath64x64.mul(ABDKMath64x64.mul(cycle.baseReward, curvePoint), cycle.normalizationFactor);
+        payable(msg.sender).transfer(ABDKMath64x64.toUInt(normalizedReward));
     }
 }
