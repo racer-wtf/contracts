@@ -315,6 +315,7 @@ contract Racer {
         Cycle storage cycle = cycles[cycleId];
         require(block.number > cycle.endingBlock, "cycle has not ended yet");
         Vote storage vote = votes[cycleId][voteId];
+        require(vote.placer == msg.sender, "you are not placer of that vote");
         bool topThreeSymbolsVote = false;
         uint place;
         for (uint i = 0; i < 3; i++) {
