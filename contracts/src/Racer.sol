@@ -315,7 +315,6 @@ contract Racer {
         Cycle storage cycle = cycles[cycleId];
         require(block.number > cycle.endingBlock, "cycle has not ended yet");
         Vote storage vote = votes[cycleId][voteId];
-        require(vote.placer == msg.sender, "you are not placer of that vote");
         bool topThreeSymbolsVote = false;
         uint place;
         for (uint i = 0; i < 3; i++) {
@@ -327,8 +326,15 @@ contract Racer {
             }
         }
         require(topThreeSymbolsVote, "your vote is not for top three symbols");
-        // TODO implement restrict on claiming rewards after 1/3 of time for 2nd place
-        // and 2/3 of timeliness for 3rd place for regular voter
+
+        // reward claiming restriction based on timeliness of vote
+        int128 timeliness = getVoteTimeliness(cycle, vote);
+        if ((place == 1 && timeliness >= ABDKMath64x64.div(2,3)) || (place == 2 && timeliness >= ABDKMath64x64.div(1,3))) {
+            require(msg.sender == cycle.creator, "vote is placed late so claiming reward for this vote is restricted to cycle creator");
+        } else {
+            require(msg.sender == vote.placer, "you are not placer of that vote");
+        }
+
         if (cycle.normalizationFactor == 0) {
             cycle.normalizationFactor = calculateNormalizedFactor(cycleId); // this is expensive
         }
