@@ -15,10 +15,10 @@ import "forge-std/Test.sol";
 import "forge-std/StdCheats.sol";
 import "forge-std/StdError.sol";
 
-import "../src/Racer.sol";
+import "../src/Racer.sol" as Racer;
 
 contract Racer2Test is Test {
-    Racer market;
+    Racer.Racer market;
 
     event CycleCreated(
         address indexed creator,
@@ -29,7 +29,7 @@ contract Racer2Test is Test {
     );
 
     function setUp() public {
-        market = new Racer();
+        market = new Racer.Racer();
     }
 
     function testCreateCycle(
