@@ -189,4 +189,20 @@ contract Racer2Test is Test {
         market.placeVote{value: votePrice}(0, symbol);
         vm.stopPrank();
     }
+
+    function testPlaceVoteWithIncorrectPrice(
+        uint256 startingBlock,
+        uint256 blockLength,
+        uint256 votePrice,
+        bytes4 symbol
+    ) public {
+        vm.assume(blockLength > 0);
+        testCreateCycle(startingBlock, blockLength, votePrice);
+        vm.deal(address(1), votePrice);
+        vm.startPrank(address(1));
+        vm.roll(startingBlock);
+        vm.expectRevert("incorrect wei amount for this cycle");
+        market.placeVote{value: votePrice - 1}(0, symbol);
+        vm.stopPrank();
+    }
 }
