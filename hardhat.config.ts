@@ -39,10 +39,10 @@ task(
       console.log(
         account.address +
           " " +
-          (await hre.ethers.provider.getBalance(account.address))
+          (await hre.ethers.provider.getBalance(account.address)),
       );
     }
-  }
+  },
 );
 
 const config: HardhatUserConfig = {
