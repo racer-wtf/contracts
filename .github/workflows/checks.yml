@@ -39,7 +39,7 @@ jobs:
           node-version: ${{ matrix.node_version }}
 
       - name: Install Yarn project with a clean slate
-        run: yarn install --prefer-offline --frozen-lockfile
+        run: yarn install
 
       - name: Prettier and lint
         run: yarn lint:check 
