@@ -28,6 +28,13 @@ contract Racer2Test is Test {
         uint256 votePrice
     );
 
+    event VotePlaced(
+        address indexed placer,
+        uint256 voteId,
+        uint256 indexed cycleId,
+        bytes4 indexed symbol
+    );
+
     function setUp() public {
         market = new Racer.Racer();
     }
@@ -83,6 +90,82 @@ contract Racer2Test is Test {
         assertEq(creator, address(1));
         assertEq(balance, 0);
         assertEq(totalVotes, 0);
+        vm.stopPrank();
+    }
+
+    function testCreateCycleRevertsOnOverflow(
+        uint256 startingBlock,
+        uint256 blockLength,
+        uint256 votePrice
+    ) public {
+        vm.assume(votePrice > 0);
+        // check for arithmetic overflow
+        unchecked {
+            vm.assume(startingBlock + blockLength < startingBlock);
+        }
+
+        vm.startPrank(address(1));
+        vm.expectRevert(stdError.arithmeticError);
+        market.createCycle(startingBlock, blockLength, votePrice);
+        vm.stopPrank();
+    }
+
+    function testGetCycleRevertsOnNonExistentID(uint256 cycleId) public {
+        vm.startPrank(address(1));
+        vm.expectRevert("cycle doesn't exist");
+        market.getCycle(cycleId);
+        vm.stopPrank();
+    }
+ 
+    function testCreateCycleRevertsOnZeroVotePrice(
+        uint256 startingBlock,
+        uint256 blockLength
+    ) public {
+        // assume no arithmetic overflow
+        unchecked {
+            vm.assume(startingBlock + blockLength >= startingBlock);
+        }
+
+        vm.startPrank(address(1));
+        vm.expectRevert("vote price must be greater than 0");
+        market.createCycle(startingBlock, blockLength, 0);
+        vm.stopPrank();
+    }
+
+    function testPlaceVote(
+        uint256 startingBlock,
+        uint256 blockLength,
+        uint256 votePrice,
+        bytes4 symbol
+    ) public {
+        vm.assume(blockLength > 0);
+        testCreateCycle(startingBlock, blockLength, votePrice);
+        vm.deal(address(1), votePrice);
+        vm.startPrank(address(1));
+        vm.roll(startingBlock);
+        vm.expectEmit();
+        emit VotePlaced(address(1), 0, 0, symbol);
+        market.placeVote{value: votePrice}(0, symbol);
+        vm.stopPrank();
+    }
+
+    function testPlaceVoteInInvalidBlockNumber(
+        uint256 startingBlock,
+        uint256 blockLength,
+        uint256 votePrice,
+        bytes4 symbol
+    ) public {
+        vm.assume(blockLength > 0);
+        // assume no arithmetic overflow
+        unchecked {
+            vm.assume(startingBlock + blockLength < UINT256_MAX - 2);
+        }
+        testCreateCycle(startingBlock, blockLength, votePrice);
+        vm.deal(address(1), votePrice);
+        vm.startPrank(address(1));
+        vm.roll(startingBlock+blockLength+1);
+        vm.expectRevert("voting is unavailable");
+        market.placeVote{value: votePrice}(0, symbol);
         vm.stopPrank();
     }
 }

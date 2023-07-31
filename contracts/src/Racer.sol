@@ -10,6 +10,7 @@ contract Racer {
     using Counters for Counters.Counter;
     using Bytes4Set for Bytes4Set.Set;
 
+
     struct Vote {
         // vote id (restricted to current cycle)
         uint256 voteId;
@@ -66,8 +67,7 @@ contract Racer {
         address indexed placer,
         uint256 voteId,
         uint256 indexed cycleId,
-        bytes4 indexed symbol,
-        uint256 amount
+        bytes4 indexed symbol
     );
 
     event VoteClaimed(
@@ -104,8 +104,8 @@ contract Racer {
     ) public payable returns (uint256) {
         require(cycles[cycleId].exists, "cycle doesn't exist");
         require(
-            cycles[cycleId].startingBlock <= block.number,
-            "cycle hasn't started yet"
+            cycles[cycleId].startingBlock <= block.number && cycles[cycleId].endingBlock >= block.number,
+            "voting is unavailable"
         );
         uint256 amount = msg.value;
         require(
@@ -113,8 +113,8 @@ contract Racer {
             "incorrect wei amount for this cycle"
         );
         Cycle storage cycle = cycles[cycleId];
-        cycle.voteIdCounter.increment();
         uint256 voteId = cycle.voteIdCounter.current();
+        cycle.voteIdCounter.increment();
         votes[cycleId][voteId] = Vote(
             voteId,
             symbol,
@@ -131,13 +131,13 @@ contract Racer {
 
         updateTopThreeSymbols(cycleId);
 
-        emit VotePlaced(msg.sender, voteId, cycleId, symbol, amount);
+        emit VotePlaced(msg.sender, voteId, cycleId, symbol);
         return voteId;
     }
 
     // update top three most voted symbols
     function updateTopThreeSymbols(uint256 cycleId) internal {
-        bool init = topThreeSymbols[cycleId].length != 0;
+        bool init = topThreeSymbols[cycleId].length == 0;
         Symbol memory first = Symbol("", 0, 0);
         Symbol memory second = Symbol("", 0, 0);
         Symbol memory third = Symbol("", 0, 0);
@@ -171,6 +171,8 @@ contract Racer {
         uint256 blockLength,
         uint256 votePrice
     ) public returns (uint256) {
+        require(votePrice > 0, "vote price must be greater than 0");
+        
         uint256 cycleId = cycleIdCounter.current();
         cycles[cycleId] = Cycle(
             cycleId,
@@ -211,6 +213,7 @@ contract Racer {
         )
     {
         Cycle storage cycle = cycles[cycleId];
+        require(cycle.exists, "cycle doesn't exist");
         startingBlock = cycle.startingBlock;
         endingBlock = cycle.endingBlock;
         votePrice = cycle.votePrice;
