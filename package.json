@@ -100,10 +100,15 @@
     "solhint:check": "yarn dlx solhint 'contracts/**/*.sol'",
     "solhint:fix": "yarn dlx solhint 'contracts/**/*.sol' --fix",
     "lint:check": "yarn prettier:check && yarn solhint:check && yarn dlx eslint \"**/*.{js,ts}\"",
-    "lint:fix": "yarn prettier:fix && yarn solhint:fix && yarn dlx eslint \"**/*.{js,ts}\" --fix",
+    "lint:fix": "yarn prettier:fix && yarn solhint:fix",
     "postinstall": "husky install",
     "prepack": "pinst --disable",
     "postpack": "pinst --enable"
+  },
+  "lint-staged": {
+    "contracts/**/*.sol": "yarn solhint:fix",
+    "**/*.{js,ts}": "yarn dlx eslint \"**/*.{js,ts}\" --fix",
+    "**/*.{js,ts,md,sol,json}": "yarn prettier:fix"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.7.0",

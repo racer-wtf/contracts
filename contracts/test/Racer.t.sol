@@ -184,7 +184,7 @@ contract Racer2Test is Test {
         testCreateCycle(startingBlock, blockLength, votePrice);
         vm.deal(address(1), votePrice);
         vm.startPrank(address(1));
-        vm.roll(startingBlock-1);
+        vm.roll(startingBlock - 1);
         vm.expectRevert("voting is unavailable");
         market.placeVote{value: votePrice}(0, symbol);
         vm.stopPrank();
