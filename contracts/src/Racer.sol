@@ -26,14 +26,14 @@ contract Racer {
     }
 
     struct Cycle {
+        // cycle id
+        uint256 id;
         // the current cycle's starting block
         uint256 startingBlock;
         // amount of blocks the cycle will run for
         uint256 endingBlock;
         // the cost of one vote in wei
         uint256 votePrice;
-        // the reward multiplier for the cycle
-        uint256 multiplier;
         // the address of the cycle creator
         address creator;
         // vote id counter for this cycle
@@ -68,6 +68,13 @@ contract Racer {
         uint256 indexed cycleId,
         bytes4 indexed symbol,
         uint256 amount
+    );
+
+    event VoteClaimed(
+        address indexed claimer,
+        uint256 indexed cycleId,
+        bytes4 indexed symbol,
+        int128 amount
     );
 
     // cycle id -> symbol -> vote id array
@@ -162,17 +169,16 @@ contract Racer {
     function createCycle(
         uint256 startingBlock,
         uint256 blockLength,
-        uint256 votePrice,
-        uint256 multiplier
+        uint256 votePrice
     ) public returns (uint256) {
         cycleIdCounter.increment();
 
         uint256 cycleId = cycleIdCounter.current();
         cycles[cycleId] = Cycle(
+            cycleId,
             startingBlock,
             startingBlock + blockLength,
             votePrice,
-            multiplier,
             msg.sender,
             Counters.Counter(0),
             true,
@@ -311,14 +317,14 @@ contract Racer {
         return ABDKMath64x64.divu(cycle.balance, cycle.voteIdCounter.current());
     }
 
-    function claimReward(uint256 cycleId, uint256 voteId) public {
-        Cycle storage cycle = cycles[cycleId];
-        require(block.number > cycle.endingBlock, "cycle has not ended yet");
-        Vote storage vote = votes[cycleId][voteId];
+    function getVotePlace(
+        Cycle storage cycle,
+        Vote storage vote
+    ) internal view returns (uint) {
         bool topThreeSymbolsVote = false;
         uint place;
         for (uint i = 0; i < 3; i++) {
-            bytes4 symbol = symbols[cycleId].get(topThreeSymbols[cycleId][i]);
+            bytes4 symbol = symbols[cycle.id].get(topThreeSymbols[cycle.id][i]);
             if (symbol == vote.symbol) {
                 topThreeSymbolsVote = true;
                 place = i;
@@ -326,23 +332,66 @@ contract Racer {
             }
         }
         require(topThreeSymbolsVote, "your vote is not for top three symbols");
+        return place;
+    }
 
+    function calculateReward(
+        uint256 cycleId,
+        uint256 voteId
+    ) public view returns (int128) {
+        require(cycles[cycleId].exists, "invalid cycle");
+        require(votes[cycleId][voteId].placedInBlock != 0, "invalid vote");
+        Cycle storage cycle = cycles[cycleId];
+        Vote storage vote = votes[cycleId][voteId];
+        require(
+            cycle.normalizationFactor != 0,
+            "normalization factor hasn't calculated yet"
+        );
+        require(cycle.baseReward != 0, "base reward hasn't calculated yet");
+
+        uint place = getVotePlace(cycle, vote);
+
+        int128 curvePoint = calculatePoint(cycle, vote, place);
+        int128 normalizedReward = ABDKMath64x64.mul(
+            ABDKMath64x64.mul(cycle.baseReward, curvePoint),
+            cycle.normalizationFactor
+        );
+        return normalizedReward;
+    }
+
+    function claimReward(uint256 cycleId, uint256 voteId) public {
+        require(cycles[cycleId].exists, "invalid cycle");
+        Cycle storage cycle = cycles[cycleId];
+        require(block.number > cycle.endingBlock, "cycle has not ended yet");
+        Vote storage vote = votes[cycleId][voteId];
+        require(vote.placedInBlock != 0, "invalid vote");
+
+        uint place = getVotePlace(cycle, vote);
         // reward claiming restriction based on timeliness of vote
         int128 timeliness = getVoteTimeliness(cycle, vote);
-        if ((place == 1 && timeliness >= ABDKMath64x64.div(2,3)) || (place == 2 && timeliness >= ABDKMath64x64.div(1,3))) {
-            require(msg.sender == cycle.creator, "vote is placed late so claiming reward for this vote is restricted to cycle creator");
+        if (
+            (place == 1 && timeliness >= ABDKMath64x64.div(2, 3)) ||
+            (place == 2 && timeliness >= ABDKMath64x64.div(1, 3))
+        ) {
+            require(
+                msg.sender == cycle.creator,
+                "vote is placed late so claiming reward for this vote is restricted to cycle creator"
+            );
         } else {
-            require(msg.sender == vote.placer, "you are not placer of that vote");
+            require(
+                msg.sender == vote.placer,
+                "you are not placer of that vote"
+            );
         }
 
         if (cycle.normalizationFactor == 0) {
             cycle.normalizationFactor = calculateNormalizedFactor(cycleId); // this is expensive
         }
-        if(cycle.baseReward == 0) {
+        if (cycle.baseReward == 0) {
             cycle.baseReward = getBaseReward(cycle);
         }
-        int128 curvePoint = calculatePoint(cycle, vote, place);
-        int128 normalizedReward = ABDKMath64x64.mul(ABDKMath64x64.mul(cycle.baseReward, curvePoint), cycle.normalizationFactor);
+        int128 normalizedReward = calculateReward(cycleId, voteId);
         payable(msg.sender).transfer(ABDKMath64x64.toUInt(normalizedReward));
+        emit VoteClaimed(msg.sender, cycleId, vote.symbol, normalizedReward);
     }
 }
