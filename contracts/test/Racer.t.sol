@@ -116,7 +116,7 @@ contract Racer2Test is Test {
         market.getCycle(cycleId);
         vm.stopPrank();
     }
- 
+
     function testCreateCycleRevertsOnZeroVotePrice(
         uint256 startingBlock,
         uint256 blockLength
@@ -149,7 +149,7 @@ contract Racer2Test is Test {
         vm.stopPrank();
     }
 
-    function testPlaceVoteInInvalidBlockNumber(
+    function testPlaceVoteAfterCycleEnds(
         uint256 startingBlock,
         uint256 blockLength,
         uint256 votePrice,
@@ -163,7 +163,28 @@ contract Racer2Test is Test {
         testCreateCycle(startingBlock, blockLength, votePrice);
         vm.deal(address(1), votePrice);
         vm.startPrank(address(1));
-        vm.roll(startingBlock+blockLength+1);
+        vm.roll(startingBlock + blockLength + 1);
+        vm.expectRevert("voting is unavailable");
+        market.placeVote{value: votePrice}(0, symbol);
+        vm.stopPrank();
+    }
+
+    function testPlaceVoteBeforeCycleStarts(
+        uint256 startingBlock,
+        uint256 blockLength,
+        uint256 votePrice,
+        bytes4 symbol
+    ) public {
+        vm.assume(blockLength > 0);
+        vm.assume(startingBlock > 1);
+        // assume no arithmetic overflow
+        unchecked {
+            vm.assume(startingBlock + blockLength < UINT256_MAX);
+        }
+        testCreateCycle(startingBlock, blockLength, votePrice);
+        vm.deal(address(1), votePrice);
+        vm.startPrank(address(1));
+        vm.roll(startingBlock-1);
         vm.expectRevert("voting is unavailable");
         market.placeVote{value: votePrice}(0, symbol);
         vm.stopPrank();

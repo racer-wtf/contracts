@@ -10,7 +10,6 @@ contract Racer {
     using Counters for Counters.Counter;
     using Bytes4Set for Bytes4Set.Set;
 
-
     struct Vote {
         // vote id (restricted to current cycle)
         uint256 voteId;
@@ -104,7 +103,8 @@ contract Racer {
     ) public payable returns (uint256) {
         require(cycles[cycleId].exists, "cycle doesn't exist");
         require(
-            cycles[cycleId].startingBlock <= block.number && cycles[cycleId].endingBlock >= block.number,
+            cycles[cycleId].startingBlock <= block.number &&
+                cycles[cycleId].endingBlock >= block.number,
             "voting is unavailable"
         );
         uint256 amount = msg.value;
@@ -172,7 +172,7 @@ contract Racer {
         uint256 votePrice
     ) public returns (uint256) {
         require(votePrice > 0, "vote price must be greater than 0");
-        
+
         uint256 cycleId = cycleIdCounter.current();
         cycles[cycleId] = Cycle(
             cycleId,
