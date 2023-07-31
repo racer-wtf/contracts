@@ -418,8 +418,8 @@ contract Racer {
             cycle.baseReward = getBaseReward(cycle);
         }
         int128 normalizedReward = calculateReward(cycleId, voteId);
-        payable(msg.sender).transfer(ABDKMath64x64.toUInt(normalizedReward));
         cycle.balance -= ABDKMath64x64.toUInt(normalizedReward);
+        payable(msg.sender).transfer(ABDKMath64x64.toUInt(normalizedReward));
         emit VoteClaimed(msg.sender, cycleId, vote.symbol, normalizedReward);
     }
 }
