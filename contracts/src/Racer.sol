@@ -206,7 +206,8 @@ contract Racer {
             uint256 endingBlock,
             uint256 votePrice,
             address creator,
-            uint256 balance
+            uint256 balance,
+            uint256 totalVotes
         )
     {
         Cycle storage cycle = cycles[cycleId];
@@ -215,6 +216,9 @@ contract Racer {
         votePrice = cycle.votePrice;
         creator = cycle.creator;
         balance = cycle.balance;
+        for (uint i = 0; i < symbols[cycleId].count(); i++) {
+            totalVotes += votesMeta[cycleId][symbols[cycleId].get(i)].length;
+        }
     }
 
     // WARN! This function should be called only once cuz it's very expensive on gas
