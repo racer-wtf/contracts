@@ -191,9 +191,30 @@ contract Racer {
             startingBlock,
             blockLength,
             votePrice
-        ); 
+        );
         cycleIdCounter.increment();
         return cycleId;
+    }
+
+    function getCycle(
+        uint256 cycleId
+    )
+        public
+        view
+        returns (
+            uint256 startingBlock,
+            uint256 endingBlock,
+            uint256 votePrice,
+            address creator,
+            uint256 balance
+        )
+    {
+        Cycle storage cycle = cycles[cycleId];
+        startingBlock = cycle.startingBlock;
+        endingBlock = cycle.endingBlock;
+        votePrice = cycle.votePrice;
+        creator = cycle.creator;
+        balance = cycle.balance;
     }
 
     // WARN! This function should be called only once cuz it's very expensive on gas
@@ -391,6 +412,7 @@ contract Racer {
         }
         int128 normalizedReward = calculateReward(cycleId, voteId);
         payable(msg.sender).transfer(ABDKMath64x64.toUInt(normalizedReward));
+        cycle.balance -= ABDKMath64x64.toUInt(normalizedReward);
         emit VoteClaimed(msg.sender, cycleId, vote.symbol, normalizedReward);
     }
 }
