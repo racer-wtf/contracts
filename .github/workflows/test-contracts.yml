@@ -29,7 +29,7 @@ jobs:
       - name: Cache Yarn's cache folder
         uses: actions/cache@v3
         with:
-          path: ${{ steps.find-yarn-cache-folder.outputs.path }}
+          path: ${{ steps.find-yarn-cache-folder.outputs.dir }}
           key: yarn-cache-folder-os-${{ runner.os }}-node-${{ matrix.node_version }}-${{ hashFiles('yarn.lock') }}
           restore-keys: |
             yarn-cache-folder-os-${{ runner.os }}-node-${{ matrix.node_version }}-
