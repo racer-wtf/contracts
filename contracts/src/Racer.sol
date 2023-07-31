@@ -171,8 +171,6 @@ contract Racer {
         uint256 blockLength,
         uint256 votePrice
     ) public returns (uint256) {
-        cycleIdCounter.increment();
-
         uint256 cycleId = cycleIdCounter.current();
         cycles[cycleId] = Cycle(
             cycleId,
@@ -193,7 +191,8 @@ contract Racer {
             startingBlock,
             blockLength,
             votePrice
-        );
+        ); 
+        cycleIdCounter.increment();
         return cycleId;
     }
 
