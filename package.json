@@ -26,7 +26,7 @@
     "accounts": "npx hardhat accounts",
     "balances": "npx hardhat balances",
     "node:hh": "npx hardhat node",
-    "clean": "npx hardhat clean",
+    "clean": "yarn dlx hardhat clean",
     "test:hh": "npx hardhat test",
     "test:forge": "forge test -vvv --root . -C contracts/src --match-path \"contracts/test/*\" --out forge-artifacts",
     "coverage": "npx hardhat coverage",
@@ -97,15 +97,13 @@
     "deploy:shimmerevmtestnet": "npx hardhat run --network shimmerEVMTestnet scripts/deploy.ts",
     "prettier:check": "prettier --plugin=prettier-plugin-solidity -c **/*.{js,ts,md,sol,json}",
     "prettier:fix": "prettier --plugin=prettier-plugin-solidity -w **/*.{js,ts,md,sol,json}",
-    "solhint:check": "npx solhint 'contracts/**/*.sol'",
-    "solhint:fix": "npx solhint 'contracts/**/*.sol' --fix",
-    "lint:check": "yarn prettier:check && yarn solhint:check && npx eslint **/*.{js,ts}",
-    "lint:fix": "yarn prettier:fix && yarn solhint:fix && npx eslint **/*.{js,ts} --fix"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "yarn lint:fix"
-    }
+    "solhint:check": "yarn dlx solhint 'contracts/**/*.sol'",
+    "solhint:fix": "yarn dlx solhint 'contracts/**/*.sol' --fix",
+    "lint:check": "yarn prettier:check && yarn solhint:check && yarn dlx eslint **/*.{js,ts}",
+    "lint:fix": "yarn prettier:fix && yarn solhint:fix && yarn dlx eslint \"**/*.{js,ts}\" --fix",
+    "postinstall": "husky install",
+    "prepack": "pinst --disable",
+    "postpack": "pinst --enable"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.7.0",
@@ -138,7 +136,8 @@
     "hardhat-abi-exporter": "^2.10.1",
     "hardhat-contract-sizer": "^2.10.0",
     "hardhat-gas-reporter": "^1.0.9",
-    "husky": "^8.0.3",
+    "husky": "^8.0.0",
+    "pinst": "^3.0.0",
     "prettier": "^3.0.0",
     "prettier-plugin-solidity": "^1.1.3",
     "solidity-coverage": "^0.8.3",
