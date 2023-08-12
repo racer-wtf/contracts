@@ -422,4 +422,21 @@ contract Racer {
         payable(msg.sender).transfer(ABDKMath64x64.toUInt(normalizedReward));
         emit VoteClaimed(msg.sender, cycleId, vote.symbol, normalizedReward);
     }
+
+    function symbolVoteCount(
+        uint256 cycleId,
+        bytes4 symbol
+    ) public view returns (uint) {
+        return votesMeta[cycleId][symbol].length;
+    }
+
+    function totalVoteCount(uint256 cycleId) public view returns (uint) {
+        return cycles[cycleId].voteIdCounter.current() + 1; // bc we start with id 0
+    }
+
+    function cycleRewardPoolBalance(
+        uint256 cycleId
+    ) public view returns (uint256) {
+        return cycles[cycleId].balance;
+    }
 }
