@@ -4,8 +4,10 @@ pragma solidity ^0.8.20;
 import "../lib/abdk-libraries-solidity/ABDKMath64x64.sol";
 import "../lib/Bytes4Set.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract Racer {
+contract Racer is ReentrancyGuard {
     using ABDKMath64x64 for int128;
     using Counters for Counters.Counter;
     using Bytes4Set for Bytes4Set.Set;
@@ -23,6 +25,8 @@ contract Racer {
         uint256 cycleId;
         // block number in which this vote placed
         uint256 placedInBlock;
+        // flag for checking existence of vote
+        bool exists;
     }
 
     struct Cycle {
@@ -51,7 +55,7 @@ contract Racer {
     struct Symbol {
         bytes4 symbol;
         uint256 voteCount;
-        uint pointer;
+        uint256 pointer;
     }
 
     event CycleCreated(
@@ -73,7 +77,7 @@ contract Racer {
         address indexed claimer,
         uint256 indexed cycleId,
         bytes4 indexed symbol,
-        int128 amount
+        uint256 amount
     );
 
     // cycle id -> symbol -> vote id array
@@ -81,7 +85,7 @@ contract Racer {
 
     // store here top three most voted symbols (for caching purposes)
     // we use pointers to the symbol set items
-    mapping(uint256 => uint[]) topThreeSymbols;
+    mapping(uint256 => uint256[3]) topThreeSymbols;
 
     // cycle id -> symbols people voted for
     mapping(uint256 => Bytes4Set.Set) symbols;
@@ -121,7 +125,8 @@ contract Racer {
             msg.sender,
             false,
             cycleId,
-            block.number
+            block.number,
+            true
         );
         votesMeta[cycleId][symbol].push(voteId);
         if (!symbols[cycleId].exists(symbol)) {
@@ -137,7 +142,6 @@ contract Racer {
 
     // update top three most voted symbols
     function updateTopThreeSymbols(uint256 cycleId) internal {
-        bool init = topThreeSymbols[cycleId].length == 0;
         Symbol memory first = Symbol("", 0, 0);
         Symbol memory second = Symbol("", 0, 0);
         Symbol memory third = Symbol("", 0, 0);
@@ -155,15 +159,9 @@ contract Racer {
             }
         }
 
-        if (init) {
-            topThreeSymbols[cycleId].push(first.pointer);
-            topThreeSymbols[cycleId].push(second.pointer);
-            topThreeSymbols[cycleId].push(third.pointer);
-        } else {
-            topThreeSymbols[cycleId][0] = first.pointer;
-            topThreeSymbols[cycleId][1] = second.pointer;
-            topThreeSymbols[cycleId][2] = third.pointer;
-        }
+        topThreeSymbols[cycleId][0] = first.pointer;
+        topThreeSymbols[cycleId][1] = second.pointer;
+        topThreeSymbols[cycleId][2] = third.pointer;
     }
 
     function createCycle(
@@ -238,61 +236,64 @@ contract Racer {
         int128 normalizationFactor = 0;
 
         // summing points from the first symbol
-        for (
-            uint i = 0;
-            i <
-            votesMeta[cycleId][
-                symbols[cycleId].get(topThreeSymbols[cycleId][0])
-            ].length;
-            i++
-        ) {
-            Vote storage vote = votes[cycleId][i];
-            int128 rewardPoint = calculatePoint(cycle, vote, 1);
+        bytes4 firstSymbol = symbols[cycleId].get(topThreeSymbols[cycleId][0]);
+        for (uint i = 0; i < votesMeta[cycleId][firstSymbol].length; i++) {
+            Vote storage vote = votes[cycleId][
+                votesMeta[cycleId][firstSymbol][i]
+            ];
+            int128 rewardPoint = calculatePoint(cycle, vote, 0);
             normalizationFactor = ABDKMath64x64.add(
                 normalizationFactor,
                 rewardPoint
             );
         }
 
-        // summing points from the second symbol
-        for (
-            uint i = 0;
-            i <
-            votesMeta[cycleId][
-                symbols[cycleId].get(topThreeSymbols[cycleId][1])
-            ].length;
-            i++
-        ) {
-            Vote storage vote = votes[cycleId][i];
-            int128 rewardPoint = calculatePoint(cycle, vote, 2);
-            normalizationFactor = ABDKMath64x64.add(
-                normalizationFactor,
-                rewardPoint
+        if (topThreeSymbols[cycleId][0] != topThreeSymbols[cycleId][1]) {
+            // summing points from the second symbol
+            bytes4 secondSymbol = symbols[cycleId].get(
+                topThreeSymbols[cycleId][1]
             );
+            for (uint i = 0; i < votesMeta[cycleId][secondSymbol].length; i++) {
+                Vote storage vote = votes[cycleId][
+                    votesMeta[cycleId][secondSymbol][i]
+                ];
+                int128 rewardPoint = calculatePoint(cycle, vote, 1);
+                normalizationFactor = ABDKMath64x64.add(
+                    normalizationFactor,
+                    rewardPoint
+                );
+            }
         }
 
-        // summing points from the third symbol
-        for (
-            uint i = 0;
-            i <
-            votesMeta[cycleId][
-                symbols[cycleId].get(topThreeSymbols[cycleId][2])
-            ].length;
-            i++
-        ) {
-            Vote storage vote = votes[cycleId][i];
-            int128 rewardPoint = calculatePoint(cycle, vote, 3);
-            normalizationFactor = ABDKMath64x64.add(
-                normalizationFactor,
-                rewardPoint
+        if (topThreeSymbols[cycleId][0] != topThreeSymbols[cycleId][2]) {
+            // summing points from the third symbol
+            bytes4 thirdSymbol = symbols[cycleId].get(
+                topThreeSymbols[cycleId][2]
             );
+            for (
+                uint256 i = 0;
+                i < votesMeta[cycleId][thirdSymbol].length;
+                i++
+            ) {
+                Vote storage vote = votes[cycleId][
+                    votesMeta[cycleId][thirdSymbol][i]
+                ];
+                int128 rewardPoint = calculatePoint(cycle, vote, 2);
+                normalizationFactor = ABDKMath64x64.add(
+                    normalizationFactor,
+                    rewardPoint
+                );
+            }
         }
 
         normalizationFactor = ABDKMath64x64.div(
             normalizationFactor,
             ABDKMath64x64.fromUInt(cycle.voteIdCounter.current())
         );
-
+        normalizationFactor = ABDKMath64x64.div(
+            ABDKMath64x64.fromUInt(1),
+            normalizationFactor
+        );
         return normalizationFactor;
     }
 
@@ -312,31 +313,32 @@ contract Racer {
         Vote storage vote,
         uint place
     ) internal view returns (int128) {
-        require(place >= 1 && place <= 3, "incorrect place value");
+        require(place >= 0 && place <= 2, "incorrect place value");
         int128 timeliness = getVoteTimeliness(cycle, vote);
-        int128 rewardPoint = ABDKMath64x64.fromUInt(0);
+        int128 rewardPoint;
         if (place == 0) {
             rewardPoint = ABDKMath64x64.pow(
-                ABDKMath64x64.sub(timeliness, 1),
+                ABDKMath64x64.sub(timeliness, ABDKMath64x64.fromUInt(1)),
                 2
             );
         } else if (place == 1) {
             rewardPoint = ABDKMath64x64.pow(
                 ABDKMath64x64.sub(
-                    ABDKMath64x64.div(timeliness, 2),
-                    ABDKMath64x64.div(1, 2)
+                    ABDKMath64x64.div(timeliness, ABDKMath64x64.fromUInt(2)),
+                    ABDKMath64x64.divu(1, 2)
                 ),
                 2
             );
         } else if (place == 2) {
             rewardPoint = ABDKMath64x64.pow(
                 ABDKMath64x64.sub(
-                    ABDKMath64x64.div(timeliness, 3),
-                    ABDKMath64x64.div(1, 3)
+                    ABDKMath64x64.div(timeliness, ABDKMath64x64.fromUInt(3)),
+                    ABDKMath64x64.divu(1, 3)
                 ),
                 2
             );
         }
+
         return rewardPoint;
     }
 
@@ -367,7 +369,7 @@ contract Racer {
         uint256 voteId
     ) public view returns (int128) {
         require(cycles[cycleId].exists, "invalid cycle");
-        require(votes[cycleId][voteId].placedInBlock != 0, "invalid vote");
+        require(votes[cycleId][voteId].exists, "invalid vote");
         Cycle storage cycle = cycles[cycleId];
         Vote storage vote = votes[cycleId][voteId];
         require(
@@ -386,19 +388,20 @@ contract Racer {
         return normalizedReward;
     }
 
-    function claimReward(uint256 cycleId, uint256 voteId) public {
+    function claimReward(uint256 cycleId, uint256 voteId) public nonReentrant {
         require(cycles[cycleId].exists, "invalid cycle");
         Cycle storage cycle = cycles[cycleId];
         require(block.number > cycle.endingBlock, "cycle has not ended yet");
         Vote storage vote = votes[cycleId][voteId];
-        require(vote.placedInBlock != 0, "invalid vote");
+        require(vote.exists, "invalid vote");
+        require(!vote.claimed, "vote already has been claimed");
 
         uint place = getVotePlace(cycle, vote);
         // reward claiming restriction based on timeliness of vote
         int128 timeliness = getVoteTimeliness(cycle, vote);
         if (
-            (place == 1 && timeliness >= ABDKMath64x64.div(2, 3)) ||
-            (place == 2 && timeliness >= ABDKMath64x64.div(1, 3))
+            (place == 1 && timeliness >= ABDKMath64x64.divu(2, 3)) ||
+            (place == 2 && timeliness >= ABDKMath64x64.divu(1, 3))
         ) {
             require(
                 msg.sender == cycle.creator,
@@ -418,9 +421,11 @@ contract Racer {
             cycle.baseReward = getBaseReward(cycle);
         }
         int128 normalizedReward = calculateReward(cycleId, voteId);
-        cycle.balance -= ABDKMath64x64.toUInt(normalizedReward);
-        payable(msg.sender).transfer(ABDKMath64x64.toUInt(normalizedReward));
-        emit VoteClaimed(msg.sender, cycleId, vote.symbol, normalizedReward);
+        uint64 reward = ABDKMath64x64.toUInt(normalizedReward);
+        cycle.balance -= reward;
+        vote.claimed = true;
+        Address.sendValue(payable(msg.sender), reward);
+        emit VoteClaimed(msg.sender, cycleId, vote.symbol, reward);
     }
 
     function symbolVoteCount(

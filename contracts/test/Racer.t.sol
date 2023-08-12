@@ -208,4 +208,92 @@ contract Racer2Test is Test {
         market.placeVote{value: votePrice - 1}(0, symbol);
         vm.stopPrank();
     }
+
+    function testPlaceVote1() public {
+        uint256[] memory aliceVotes = new uint256[](2);
+        uint256[] memory bobVotes = new uint256[](3);
+        uint256[] memory johnVotes = new uint256[](2);
+
+        address god = address(1);
+        address alice = address(2);
+        address bob = address(3);
+        address john = address(4);
+
+        vm.deal(alice, 2 ether);
+        vm.deal(bob, 3 ether);
+        vm.deal(john, 2 ether);
+
+        vm.prank(god);
+        uint256 cycleId = market.createCycle(0, 10, 1e18);
+
+        vm.prank(alice);
+        aliceVotes[0] = market.placeVote{value: 1e18}(cycleId, "AAPL");
+
+        vm.prank(john);
+        johnVotes[0] = market.placeVote{value: 1e18}(cycleId, "GOOG");
+
+        vm.roll(2);
+        vm.prank(alice);
+        aliceVotes[1] = market.placeVote{value: 1e18}(cycleId, "AAPL");
+
+        vm.startPrank(bob);
+        vm.roll(4);
+        bobVotes[0] = market.placeVote{value: 1e18}(cycleId, "AAPL");
+        vm.roll(6);
+        bobVotes[1] = market.placeVote{value: 1e18}(cycleId, "AAPL");
+        vm.roll(8);
+        bobVotes[2] = market.placeVote{value: 1e18}(cycleId, "AAPL");
+        vm.stopPrank();
+
+        vm.prank(john);
+        johnVotes[1] = market.placeVote{value: 1e18}(cycleId, "GOOG");
+
+        assertEq(market.totalVoteCount(cycleId), 7);
+        assertEq(market.cycleRewardPoolBalance(cycleId), 7e18);
+
+        vm.roll(11);
+        vm.startPrank(alice);
+        for (uint256 i = 0; i < aliceVotes.length; i++) {
+            console.log(
+                "[Alice] Claiming reward for vote id: %d",
+                aliceVotes[i]
+            );
+            market.claimReward(cycleId, aliceVotes[i]);
+        }
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        for (uint256 i = 0; i < bobVotes.length; i++) {
+            console.log("[Bob] Claiming reward for vote id: %d", bobVotes[i]);
+            market.claimReward(cycleId, bobVotes[i]);
+        }
+        vm.stopPrank();
+
+        vm.startPrank(john);
+        for (uint256 i = 0; i < johnVotes.length - 1; i++) {
+            console.log("[John] Claiming reward for vote id: %d", johnVotes[i]);
+            market.claimReward(cycleId, johnVotes[i]);
+        }
+
+        // test late vote
+        // mustn't be claimed
+        uint256 lateVoteId = johnVotes[johnVotes.length - 1];
+        vm.expectRevert();
+        market.claimReward(cycleId, lateVoteId);
+        vm.stopPrank();
+
+        // should be claimed
+        vm.startPrank(god);
+        market.claimReward(cycleId, lateVoteId);
+        vm.stopPrank();
+
+        console.log("Alice's balance: ", alice.balance);
+        console.log("Bob's balance: ", bob.balance);
+        console.log("John's balance: ", john.balance);
+        console.log("God's balance: ", god.balance);
+        console.log(
+            "Reward pool balance: ",
+            market.cycleRewardPoolBalance(cycleId)
+        );
+    }
 }
