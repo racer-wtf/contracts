@@ -431,7 +431,7 @@ contract Racer {
     }
 
     function totalVoteCount(uint256 cycleId) public view returns (uint) {
-        return cycles[cycleId].voteIdCounter.current() + 1; // bc we start with id 0
+        return cycles[cycleId].voteIdCounter.current();
     }
 
     function cycleRewardPoolBalance(

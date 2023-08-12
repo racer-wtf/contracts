@@ -146,6 +146,9 @@ contract Racer2Test is Test {
         vm.expectEmit();
         emit VotePlaced(address(1), 0, 0, symbol);
         market.placeVote{value: votePrice}(0, symbol);
+        assertEqUint(market.totalVoteCount(0), 1);
+        assertEqUint(market.cycleRewardPoolBalance(0), votePrice);
+        assertEqUint(market.symbolVoteCount(0, symbol), 1);
         vm.stopPrank();
     }
 
