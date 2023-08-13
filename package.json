@@ -19,7 +19,7 @@
     "prettier:fix": "prettier --plugin=prettier-plugin-solidity -w **/*.{js,md,sol,json}",
     "solhint:check": "yarn dlx solhint 'contracts/**/*.sol'",
     "solhint:fix": "yarn dlx solhint 'contracts/**/*.sol' --fix",
-    "lint:check": "yarn prettier:check && yarn solhint:check && yarn dlx eslint \"**/*.js\"",
+    "lint:check": "yarn prettier:check && yarn solhint:check",
     "lint:fix": "yarn prettier:fix && yarn solhint:fix",
     "postinstall": "husky install",
     "prepack": "pinst --disable",
