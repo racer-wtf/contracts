@@ -56,3 +56,4 @@ jobs:
         continue-on-error: true
         with:
           node-version: ${{ matrix.node_version }}
+          target: 'contracts/src/Racer.sol'
