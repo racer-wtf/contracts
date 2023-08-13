@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "../lib/abdk-libraries-solidity/ABDKMath64x64.sol";
-import "../lib/Bytes4Set.sol";
+import "abdk-libraries-solidity/ABDKMath64x64.sol";
+import "bytes4set/Bytes4Set.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
