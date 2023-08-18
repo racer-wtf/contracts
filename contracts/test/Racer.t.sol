@@ -239,10 +239,9 @@ contract Racer2Test is Test, FoundryRandom {
         vm.prank(god);
         market.createCycle(0, blockLength, 1 ether);
 
-        // uint256 voterCount = randomNumber(7, 6);
-        uint256 voterCount = 9;
+        uint256 voterCount = randomNumber(50, 500);
         console.log("count of voters:", voterCount);
-        uint256 symbolCount = randomNumber(5, 10);
+        uint256 symbolCount = randomNumber(5, 25);
         address[] memory voters = new address[](voterCount);
         bytes4[] memory symbols = new bytes4[](symbolCount);
 
@@ -253,7 +252,7 @@ contract Racer2Test is Test, FoundryRandom {
             // console.log(string(abi.encodePacked(symbols[i])));
         }
         for (uint160 i = 0; i < voterCount; i++) {
-            voters[i] = address(i + 1);
+            voters[i] = address(10 + i);
         }
 
         uint256[][] memory votes = new uint256[][](voters.length);
