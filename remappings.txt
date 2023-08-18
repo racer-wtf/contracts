@@ -3,3 +3,4 @@ forge-std/=contracts/lib/forge-std/src/
 ds-test/=contracts/lib/forge-std/lib/ds-test/src/
 abdk-libraries-solidity/=contracts/lib/abdk-libraries-solidity/
 bytes4set/=contracts/lib/bytes4set/
+foundry-random=contracts/lib/foundry-random/src/
