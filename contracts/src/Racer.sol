@@ -6,8 +6,10 @@ import "bytes4set/Bytes4Set.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract Racer is ReentrancyGuard {
+    using SafeMath for uint256;
     using ABDKMath64x64 for int128;
     using Counters for Counters.Counter;
     using Bytes4Set for Bytes4Set.Set;
@@ -349,18 +351,17 @@ contract Racer is ReentrancyGuard {
     function getVotePlace(
         Cycle storage cycle,
         Vote storage vote
-    ) internal view returns (uint) {
+    ) internal view returns (int) {
         bool topThreeSymbolsVote = false;
-        uint place;
+        int place = -1;
         for (uint i = 0; i < 3; i++) {
             bytes4 symbol = symbols[cycle.id].get(topThreeSymbols[cycle.id][i]);
             if (symbol == vote.symbol) {
                 topThreeSymbolsVote = true;
-                place = i;
+                place = int(i);
                 break;
             }
         }
-        require(topThreeSymbolsVote, "your vote is not for top three symbols");
         return place;
     }
 
@@ -378,14 +379,39 @@ contract Racer is ReentrancyGuard {
         );
         require(cycle.baseReward != 0, "base reward hasn't calculated yet");
 
-        uint place = getVotePlace(cycle, vote);
+        int place = getVotePlace(cycle, vote);
+        require(place >= 0, "vote not for top three symbols");
 
-        int128 curvePoint = calculatePoint(cycle, vote, place);
+        int128 curvePoint = calculatePoint(cycle, vote, uint(place));
         int128 normalizedReward = ABDKMath64x64.mul(
             ABDKMath64x64.mul(cycle.baseReward, curvePoint),
             cycle.normalizationFactor
         );
         return normalizedReward;
+    }
+
+    function isClaimingRewardAvailable(
+        uint256 cycleId,
+        uint256 voteId
+    ) public view returns (bool) {
+        Cycle storage cycle = cycles[cycleId];
+        require(cycle.exists, "invalid cycle");
+        if (block.number <= cycle.endingBlock) return false;
+        Vote storage vote = votes[cycleId][voteId];
+        require(vote.exists, "invalid vote");
+
+        int place = getVotePlace(cycle, vote);
+        if (place < 0) return false;
+        int128 timeliness = getVoteTimeliness(cycle, vote);
+        if (
+            (place == 1 && timeliness >= ABDKMath64x64.divu(2, 3)) ||
+            (place == 2 && timeliness >= ABDKMath64x64.divu(1, 3))
+        ) {
+            if (msg.sender != cycle.creator) return false;
+        } else {
+            if (msg.sender != vote.placer) return false;
+        }
+        return true;
     }
 
     function claimReward(uint256 cycleId, uint256 voteId) public nonReentrant {
@@ -396,7 +422,8 @@ contract Racer is ReentrancyGuard {
         require(vote.exists, "invalid vote");
         require(!vote.claimed, "vote already has been claimed");
 
-        uint place = getVotePlace(cycle, vote);
+        int place = getVotePlace(cycle, vote);
+        require(place >= 0, "vote not for top three symbols");
         // reward claiming restriction based on timeliness of vote
         int128 timeliness = getVoteTimeliness(cycle, vote);
         if (
@@ -422,7 +449,7 @@ contract Racer is ReentrancyGuard {
         }
         int128 normalizedReward = calculateReward(cycleId, voteId);
         uint64 reward = ABDKMath64x64.toUInt(normalizedReward);
-        cycle.balance -= reward;
+        cycle.balance.sub(reward);
         vote.claimed = true;
         Address.sendValue(payable(msg.sender), reward);
         emit VoteClaimed(msg.sender, cycleId, vote.symbol, reward);
@@ -433,6 +460,25 @@ contract Racer is ReentrancyGuard {
         bytes4 symbol
     ) public view returns (uint) {
         return votesMeta[cycleId][symbol].length;
+    }
+
+    function getTopThreeSymbols(
+        uint256 cycleId
+    )
+        public
+        view
+        returns (string memory first, string memory second, string memory third)
+    {
+        require(cycles[cycleId].exists, "invalid cycle id");
+        first = string(
+            abi.encodePacked(symbols[cycleId].get(topThreeSymbols[cycleId][0]))
+        );
+        second = string(
+            abi.encodePacked(symbols[cycleId].get(topThreeSymbols[cycleId][1]))
+        );
+        third = string(
+            abi.encodePacked(symbols[cycleId].get(topThreeSymbols[cycleId][2]))
+        );
     }
 
     function totalVoteCount(uint256 cycleId) public view returns (uint) {
