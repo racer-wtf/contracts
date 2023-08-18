@@ -449,7 +449,7 @@ contract Racer is ReentrancyGuard {
         }
         int128 normalizedReward = calculateReward(cycleId, voteId);
         uint64 reward = ABDKMath64x64.toUInt(normalizedReward);
-        cycle.balance.sub(reward);
+        cycle.balance = cycle.balance.sub(reward);
         vote.claimed = true;
         Address.sendValue(payable(msg.sender), reward);
         emit VoteClaimed(msg.sender, cycleId, vote.symbol, reward);
