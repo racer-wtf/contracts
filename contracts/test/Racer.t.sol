@@ -14,10 +14,11 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "forge-std/StdCheats.sol";
 import "forge-std/StdError.sol";
+import {FoundryRandom} from "foundry-random/FoundryRandom.sol";
 
 import "../src/Racer.sol" as Racer;
 
-contract Racer2Test is Test {
+contract Racer2Test is Test, FoundryRandom {
     Racer.Racer market;
 
     event CycleCreated(
@@ -207,6 +208,123 @@ contract Racer2Test is Test {
         vm.expectRevert("incorrect wei amount for this cycle");
         market.placeVote{value: votePrice - 1}(0, symbol);
         vm.stopPrank();
+    }
+
+    function randomString(uint size) internal returns (string memory) {
+        bytes memory randomWord = new bytes(size);
+        bytes memory chars = new bytes(26);
+        chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        for (uint i = 0; i < size; i++) {
+            uint randomNumber = randomNumber(25);
+            randomWord[i] = chars[randomNumber];
+        }
+        return string(randomWord);
+    }
+
+    function convertBytesToBytes4(
+        bytes memory inBytes
+    ) internal pure returns (bytes4 outBytes4) {
+        if (inBytes.length == 0) {
+            return 0x0;
+        }
+
+        assembly {
+            outBytes4 := mload(add(inBytes, 32))
+        }
+    }
+
+    function testIntegrationPlaceVotes() public {
+        uint256 blockLength = randomNumber(50, 100);
+        address god = address(0);
+        vm.prank(god);
+        market.createCycle(0, blockLength, 1 ether);
+
+        // uint256 voterCount = randomNumber(7, 6);
+        uint256 voterCount = 9;
+        console.log("count of voters:", voterCount);
+        uint256 symbolCount = randomNumber(5, 10);
+        address[] memory voters = new address[](voterCount);
+        bytes4[] memory symbols = new bytes4[](symbolCount);
+
+        for (uint i = 0; i < symbolCount; i++) {
+            symbols[i] = convertBytesToBytes4(
+                abi.encodePacked(randomString(4))
+            );
+            // console.log(string(abi.encodePacked(symbols[i])));
+        }
+        for (uint160 i = 0; i < voterCount; i++) {
+            voters[i] = address(i + 1);
+        }
+
+        uint256[][] memory votes = new uint256[][](voters.length);
+
+        // place votes
+        for (uint256 i = 0; i < voters.length; i++) {
+            uint256 voteCount = randomNumber(10);
+            votes[i] = new uint256[](voteCount);
+            vm.deal(voters[i], (voteCount) * 10 ** 18);
+            uint256 currentBlock = 0;
+            vm.roll(0);
+            vm.startPrank(voters[i]);
+            for (uint256 j = 0; j < voteCount; j++) {
+                currentBlock += randomNumber(blockLength / voteCount);
+                vm.roll(currentBlock);
+                bytes4 randomSymbol = symbols[randomNumber(symbols.length - 1)];
+                votes[i][j] = market.placeVote{value: 1 ether}(0, randomSymbol);
+            }
+            vm.stopPrank();
+        }
+
+        console.log("reward pool:", market.cycleRewardPoolBalance(0));
+        (
+            string memory first,
+            string memory second,
+            string memory third
+        ) = market.getTopThreeSymbols(0);
+        console.log("first symbol:", first);
+        console.log(
+            market.symbolVoteCount(
+                0,
+                convertBytesToBytes4(abi.encodePacked(first))
+            )
+        );
+        console.log("second symbol:", second);
+        console.log(
+            market.symbolVoteCount(
+                0,
+                convertBytesToBytes4(abi.encodePacked(second))
+            )
+        );
+        console.log("third symbol:", third);
+        console.log(
+            market.symbolVoteCount(
+                0,
+                convertBytesToBytes4(abi.encodePacked(third))
+            )
+        );
+
+        vm.roll(blockLength + 1);
+        // claim vote rewards
+        for (uint i = 0; i < voters.length; i++) {
+            for (uint j = 0; j < votes[i].length; j++) {
+                vm.startPrank(voters[i]);
+                if (market.isClaimingRewardAvailable(0, votes[i][j])) {
+                    market.claimReward(0, votes[i][j]);
+                    vm.stopPrank();
+                } else {
+                    vm.stopPrank();
+                    vm.startPrank(god);
+                    if (market.isClaimingRewardAvailable(0, votes[i][j])) {
+                        market.claimReward(0, votes[i][j]);
+                    }
+                    vm.stopPrank();
+                }
+            }
+        }
+        console.log(
+            "reward pool when finished:",
+            market.cycleRewardPoolBalance(0)
+        );
     }
 
     function testPlaceVote1() public {
