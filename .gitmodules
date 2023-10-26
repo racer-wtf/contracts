@@ -1,9 +1,12 @@
-[submodule "contracts/lib/abdk-libraries-solidity"]
-	path = contracts/lib/abdk-libraries-solidity
+[submodule "lib/abdk-libraries-solidity"]
+	path = lib/abdk-libraries-solidity
 	url = https://github.com/abdk-consulting/abdk-libraries-solidity
-[submodule "contracts/lib/forge-std"]
-	path = contracts/lib/forge-std
+[submodule "lib/forge-std"]
+	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
-[submodule "contracts/lib/foundry-random"]
-	path = contracts/lib/foundry-random
+[submodule "lib/foundry-random"]
+	path = lib/foundry-random
 	url = https://github.com/joejordan/foundry-random
+[submodule "lib/openzeppelin-contracts"]
+	path = lib/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
