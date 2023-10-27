@@ -33,7 +33,7 @@ contract RacerTest is Test {
         uint256 startingBlock,
         uint256 blockLength,
         uint256 votePrice
-    ) public {
+    ) public returns (uint256 cycleId) {
         vm.assume(votePrice > 0);
 
         // assume no arithmetic overflow
@@ -44,7 +44,7 @@ contract RacerTest is Test {
         vm.startPrank(address(1));
         vm.expectEmit();
         emit CycleCreated(address(1), 0, startingBlock, blockLength, votePrice);
-        market.createCycle(startingBlock, blockLength, votePrice);
+        cycleId = market.createCycle(startingBlock, blockLength, votePrice);
         vm.stopPrank();
     }
 
@@ -102,7 +102,9 @@ contract RacerTest is Test {
 
     function testGetCycleRevertsOnNonExistentID(uint256 cycleId) public {
         vm.startPrank(address(1));
-        vm.expectRevert("cycle doesn't exist");
+        vm.expectRevert(
+            abi.encodeWithSelector(Racer.CycleDoesntExist.selector, cycleId)
+        );
         market.getCycle(cycleId);
         vm.stopPrank();
     }
@@ -117,7 +119,7 @@ contract RacerTest is Test {
         }
 
         vm.startPrank(address(1));
-        vm.expectRevert("vote price must be greater than 0");
+        vm.expectRevert(Racer.InvalidVotePrice.selector);
         market.createCycle(startingBlock, blockLength, 0);
         vm.stopPrank();
     }
@@ -153,11 +155,20 @@ contract RacerTest is Test {
         unchecked {
             vm.assume(startingBlock + blockLength < UINT256_MAX - 2);
         }
-        testCreateCycle(startingBlock, blockLength, votePrice);
+        uint256 cycleId = testCreateCycle(
+            startingBlock,
+            blockLength,
+            votePrice
+        );
         vm.deal(address(1), votePrice);
         vm.startPrank(address(1));
         vm.roll(startingBlock + blockLength + 1);
-        vm.expectRevert("voting is unavailable");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Racer.CycleVotingIsUnavailable.selector,
+                cycleId
+            )
+        );
         market.placeVote{value: votePrice}(0, symbol);
         vm.stopPrank();
     }
@@ -174,11 +185,20 @@ contract RacerTest is Test {
         unchecked {
             vm.assume(startingBlock + blockLength < UINT256_MAX);
         }
-        testCreateCycle(startingBlock, blockLength, votePrice);
+        uint256 cycleId = testCreateCycle(
+            startingBlock,
+            blockLength,
+            votePrice
+        );
         vm.deal(address(1), votePrice);
         vm.startPrank(address(1));
         vm.roll(startingBlock - 1);
-        vm.expectRevert("voting is unavailable");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Racer.CycleVotingIsUnavailable.selector,
+                cycleId
+            )
+        );
         market.placeVote{value: votePrice}(0, symbol);
         vm.stopPrank();
     }
@@ -194,7 +214,9 @@ contract RacerTest is Test {
         vm.deal(address(1), votePrice);
         vm.startPrank(address(1));
         vm.roll(startingBlock);
-        vm.expectRevert("incorrect wei amount for this cycle");
+        vm.expectRevert(
+            abi.encodeWithSelector(Racer.InvalidVoteFee.selector, votePrice)
+        );
         market.placeVote{value: votePrice - 1}(0, symbol);
         vm.stopPrank();
     }
@@ -229,7 +251,7 @@ contract RacerTest is Test {
         address[] memory voters = new address[](voterCount);
         bytes4[] memory symbols = new bytes4[](symbolCount);
 
-        for (uint i = 0; i < symbolCount; i++) {
+        for (uint256 i = 0; i < symbolCount; i++) {
             symbols[i] = convertBytesToBytes4(abi.encodePacked(symbol));
             // console.log(string(abi.encodePacked(symbols[i])));
         }
@@ -257,9 +279,7 @@ contract RacerTest is Test {
                 vm.roll(currentBlock);
                 bytes4 randomSymbol = symbols[
                     uint256(
-                        keccak256(
-                            abi.encodePacked(block.timestamp, i, j)
-                        )
+                        keccak256(abi.encodePacked(block.timestamp, i, j))
                     ) % symbolCount
                 ];
                 votes[i][j] = market.placeVote{value: 1 ether}(0, randomSymbol);
@@ -297,8 +317,8 @@ contract RacerTest is Test {
 
         vm.roll(blockLength + 1);
         // claim vote rewards
-        for (uint i = 0; i < voters.length; i++) {
-            for (uint j = 0; j < votes[i].length; j++) {
+        for (uint256 i = 0; i < voters.length; i++) {
+            for (uint256 j = 0; j < votes[i].length; j++) {
                 vm.startPrank(voters[i]);
                 if (market.isClaimingRewardAvailable(0, votes[i][j])) {
                     market.claimReward(0, votes[i][j]);

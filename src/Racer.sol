@@ -116,6 +116,32 @@ contract Racer is ReentrancyGuard {
         uint256 pointer;
     }
 
+    // Errors
+
+    // @return cycleId The cycle ID for which the vote is placed.
+    error CycleDoesntExist(uint256 cycleId);
+    // @return cycleId The cycle ID for which the vote is placed.
+    error CycleDidntEnd(uint256 cycleId);
+    // @return cycleId The cycle ID for which the vote is placed.
+    error CycleVotingIsUnavailable(uint256 cycleId);
+    // @dev When the base reward is 0 this is returned.
+    error InvalidBaseReward();
+    // @return correctFee The correct fee for the vote.
+    error InvalidVoteFee(uint256 correctFee);
+    // @dev When the vote price is 0 this is returned.
+    error InvalidVotePrice();
+    // @dev When the normalization factor is 0 this is returned.
+    error InvalidNormalizationFactor();
+    // @dev When the vote is already claimed this is returned.
+    error VoteAlreadyClaimed();
+    // @return voteId The unique identifier for the vote.
+    error VoteDoesntExist(uint256 voteId);
+    // @return voteId The unique identifier for the vote.
+    error VoteDidntPlace(uint256 voteId);
+    // @return voteId The unique identifier for the vote.
+    // @return caller The address of the caller.
+    error VoteNotPlacedByCaller(uint256 voteId, address caller);
+
     // Public functions
 
     /**
@@ -128,17 +154,15 @@ contract Racer is ReentrancyGuard {
         uint256 cycleId,
         bytes4 symbol
     ) public payable returns (uint256) {
-        require(cycles[cycleId].exists, "cycle doesn't exist");
-        require(
-            cycles[cycleId].startingBlock <= block.number &&
-                cycles[cycleId].endingBlock >= block.number,
-            "voting is unavailable"
-        );
-        uint256 amount = msg.value;
-        require(
-            amount == cycles[cycleId].votePrice,
-            "incorrect wei amount for this cycle"
-        );
+        if (!cycles[cycleId].exists) revert CycleDoesntExist(cycleId);
+        if (
+            cycles[cycleId].startingBlock > block.number ||
+            cycles[cycleId].endingBlock < block.number
+        ) revert CycleVotingIsUnavailable(cycleId);
+        if (msg.value != cycles[cycleId].votePrice) {
+            revert InvalidVoteFee(cycles[cycleId].votePrice);
+        }
+
         Cycle storage cycle = cycles[cycleId];
         uint256 voteId = cycle.voteIdCounter++;
         votes[cycleId][voteId] = Vote(
@@ -154,7 +178,9 @@ contract Racer is ReentrancyGuard {
         if (!symbols[cycleId].exists(symbol)) {
             symbols[cycleId].insert(symbol);
         }
-        cycle.balance += cycle.votePrice;
+        unchecked {
+            cycle.balance += cycle.votePrice;
+        }
 
         updateTopThreeSymbols(cycleId);
 
@@ -174,7 +200,7 @@ contract Racer is ReentrancyGuard {
         uint256 blockLength,
         uint256 votePrice
     ) public returns (uint256) {
-        require(votePrice > 0, "vote price must be greater than 0");
+        if (votePrice == 0) revert InvalidVotePrice();
 
         uint256 cycleId = cycleIdCounter;
         cycles[cycleId] = Cycle(
@@ -226,14 +252,18 @@ contract Racer is ReentrancyGuard {
         )
     {
         Cycle storage cycle = cycles[cycleId];
-        require(cycle.exists, "cycle doesn't exist");
+        if (!cycle.exists) revert CycleDoesntExist(cycleId);
         startingBlock = cycle.startingBlock;
         endingBlock = cycle.endingBlock;
         votePrice = cycle.votePrice;
         creator = cycle.creator;
         balance = cycle.balance;
-        for (uint i = 0; i < symbols[cycleId].count(); i++) {
-            totalVotes += votesMeta[cycleId][symbols[cycleId].get(i)].length;
+        for (uint256 i = 0; i < symbols[cycleId].count(); ) {
+            unchecked {
+                totalVotes += votesMeta[cycleId][symbols[cycleId].get(i)]
+                    .length;
+                i++;
+            }
         }
     }
 
@@ -246,18 +276,17 @@ contract Racer is ReentrancyGuard {
     function calculateNormalizedFactor(
         uint256 cycleId
     ) public view returns (int128) {
-        require(cycles[cycleId].exists, "invalid cycle id");
-        require(
-            cycles[cycleId].endingBlock < block.number,
-            "cannot calculate normalization factor while cycle is not ended"
-        );
+        if (!cycles[cycleId].exists) revert CycleDoesntExist(cycleId);
+        if (cycles[cycleId].endingBlock > block.number)
+            revert CycleDidntEnd(cycleId);
         Cycle storage cycle = cycles[cycleId];
 
         int128 normalizationFactor = 0;
 
         // summing points from the first symbol
         bytes4 firstSymbol = symbols[cycleId].get(topThreeSymbols[cycleId][0]);
-        for (uint i = 0; i < votesMeta[cycleId][firstSymbol].length; i++) {
+        uint256[] storage firstSymbolVotes = votesMeta[cycleId][firstSymbol];
+        for (uint256 i = 0; i < firstSymbolVotes.length; ) {
             Vote storage vote = votes[cycleId][
                 votesMeta[cycleId][firstSymbol][i]
             ];
@@ -266,6 +295,9 @@ contract Racer is ReentrancyGuard {
                 normalizationFactor,
                 rewardPoint
             );
+            unchecked {
+                i++;
+            }
         }
 
         if (topThreeSymbols[cycleId][0] != topThreeSymbols[cycleId][1]) {
@@ -273,7 +305,10 @@ contract Racer is ReentrancyGuard {
             bytes4 secondSymbol = symbols[cycleId].get(
                 topThreeSymbols[cycleId][1]
             );
-            for (uint i = 0; i < votesMeta[cycleId][secondSymbol].length; i++) {
+            uint256[] storage secondSymbolVotes = votesMeta[cycleId][
+                secondSymbol
+            ];
+            for (uint256 i = 0; i < secondSymbolVotes.length; ) {
                 Vote storage vote = votes[cycleId][
                     votesMeta[cycleId][secondSymbol][i]
                 ];
@@ -282,6 +317,9 @@ contract Racer is ReentrancyGuard {
                     normalizationFactor,
                     rewardPoint
                 );
+                unchecked {
+                    i++;
+                }
             }
         }
 
@@ -290,11 +328,10 @@ contract Racer is ReentrancyGuard {
             bytes4 thirdSymbol = symbols[cycleId].get(
                 topThreeSymbols[cycleId][2]
             );
-            for (
-                uint256 i = 0;
-                i < votesMeta[cycleId][thirdSymbol].length;
-                i++
-            ) {
+            uint256[] storage thirdSymbolVotes = votesMeta[cycleId][
+                thirdSymbol
+            ];
+            for (uint256 i = 0; i < thirdSymbolVotes.length; ) {
                 Vote storage vote = votes[cycleId][
                     votesMeta[cycleId][thirdSymbol][i]
                 ];
@@ -303,6 +340,9 @@ contract Racer is ReentrancyGuard {
                     normalizationFactor,
                     rewardPoint
                 );
+                unchecked {
+                    i++;
+                }
             }
         }
 
@@ -327,18 +367,15 @@ contract Racer is ReentrancyGuard {
         uint256 cycleId,
         uint256 voteId
     ) public view returns (int128) {
-        require(cycles[cycleId].exists, "invalid cycle");
-        require(votes[cycleId][voteId].exists, "invalid vote");
+        if (!cycles[cycleId].exists) revert CycleDoesntExist(cycleId);
+        if (!votes[cycleId][voteId].exists) revert VoteDoesntExist(voteId);
         Cycle storage cycle = cycles[cycleId];
         Vote storage vote = votes[cycleId][voteId];
-        require(
-            cycle.normalizationFactor != 0,
-            "normalization factor hasn't calculated yet"
-        );
-        require(cycle.baseReward != 0, "base reward hasn't calculated yet");
+        if (cycle.normalizationFactor == 0) revert InvalidNormalizationFactor();
+        if (cycle.baseReward == 0) revert InvalidBaseReward();
 
-        int place = getVotePlace(cycle, vote);
-        require(place >= 0, "vote not for top three symbols");
+        int256 place = getVotePlace(cycle, vote);
+        if (place == -1) revert VoteDidntPlace(voteId);
 
         int128 curvePoint = calculatePoint(cycle, vote, uint(place));
         int128 normalizedReward = ABDKMath64x64.mul(
@@ -359,13 +396,13 @@ contract Racer is ReentrancyGuard {
         uint256 voteId
     ) public view returns (bool) {
         Cycle storage cycle = cycles[cycleId];
-        require(cycle.exists, "invalid cycle");
+        if (!cycle.exists) revert CycleDoesntExist(cycleId);
         if (block.number <= cycle.endingBlock) return false;
         Vote storage vote = votes[cycleId][voteId];
-        require(vote.exists, "invalid vote");
+        if (!vote.exists) revert VoteDoesntExist(voteId);
 
-        int place = getVotePlace(cycle, vote);
-        if (place < 0) return false;
+        int256 place = getVotePlace(cycle, vote);
+        if (place == -1) return false;
         int128 timeliness = getVoteTimeliness(cycle, vote);
         if (
             (place == 1 && timeliness >= ABDKMath64x64.divu(2, 3)) ||
@@ -384,30 +421,25 @@ contract Racer is ReentrancyGuard {
      * @param voteId The unique identifier for the vote.
      */
     function claimReward(uint256 cycleId, uint256 voteId) public nonReentrant {
-        require(cycles[cycleId].exists, "invalid cycle");
         Cycle storage cycle = cycles[cycleId];
-        require(block.number > cycle.endingBlock, "cycle has not ended yet");
+        if (!cycle.exists) revert CycleDoesntExist(cycleId);
+        if (block.number <= cycle.endingBlock) revert CycleDidntEnd(cycleId);
         Vote storage vote = votes[cycleId][voteId];
-        require(vote.exists, "invalid vote");
-        require(!vote.claimed, "vote already has been claimed");
+        if (!vote.exists) revert VoteDoesntExist(voteId);
+        if (vote.claimed) revert VoteAlreadyClaimed();
 
-        int place = getVotePlace(cycle, vote);
-        require(place >= 0, "vote not for top three symbols");
+        int256 place = getVotePlace(cycle, vote);
+        if (place == -1) revert VoteDidntPlace(voteId);
         // reward claiming restriction based on timeliness of vote
         int128 timeliness = getVoteTimeliness(cycle, vote);
         if (
             (place == 1 && timeliness >= ABDKMath64x64.divu(2, 3)) ||
             (place == 2 && timeliness >= ABDKMath64x64.divu(1, 3))
         ) {
-            require(
-                msg.sender == cycle.creator,
-                "vote is placed late so claiming reward for this vote is restricted to cycle creator"
-            );
+            if (msg.sender != cycle.creator) revert VoteDidntPlace(voteId);
         } else {
-            require(
-                msg.sender == vote.placer,
-                "you are not placer of that vote"
-            );
+            if (msg.sender != vote.placer)
+                revert VoteNotPlacedByCaller(voteId, msg.sender);
         }
 
         if (cycle.normalizationFactor == 0) {
@@ -456,7 +488,7 @@ contract Racer is ReentrancyGuard {
         view
         returns (string memory first, string memory second, string memory third)
     {
-        require(cycles[cycleId].exists, "invalid cycle id");
+        if (!cycles[cycleId].exists) revert CycleDoesntExist(cycleId);
         first = string(
             abi.encodePacked(symbols[cycleId].get(topThreeSymbols[cycleId][0]))
         );
@@ -498,7 +530,7 @@ contract Racer is ReentrancyGuard {
         Symbol memory first = Symbol("", 0, 0);
         Symbol memory second = Symbol("", 0, 0);
         Symbol memory third = Symbol("", 0, 0);
-        for (uint i = 0; i < symbols[cycleId].count(); i++) {
+        for (uint256 i = 0; i < symbols[cycleId].count(); ) {
             bytes4 symbol = symbols[cycleId].get(i);
             uint256 voteCount = votesMeta[cycleId][symbol].length;
             if (voteCount > first.voteCount) {
@@ -509,6 +541,9 @@ contract Racer is ReentrancyGuard {
                 second = Symbol(symbol, voteCount, i);
             } else if (voteCount > third.voteCount) {
                 third = Symbol(symbol, voteCount, i);
+            }
+            unchecked {
+                i++;
             }
         }
 
@@ -544,9 +579,9 @@ contract Racer is ReentrancyGuard {
     function calculatePoint(
         Cycle storage cycle,
         Vote storage vote,
-        uint place
+        uint256 place
     ) internal view returns (int128) {
-        require(place >= 0 && place <= 2, "incorrect place value");
+        if (place < 0 || place > 2) revert VoteDidntPlace(vote.voteId);
         int128 timeliness = getVoteTimeliness(cycle, vote);
         int128 rewardPoint;
         if (place == 0) {
@@ -593,14 +628,12 @@ contract Racer is ReentrancyGuard {
     function getVotePlace(
         Cycle storage cycle,
         Vote storage vote
-    ) internal view returns (int) {
-        bool topThreeSymbolsVote = false;
-        int place = -1;
-        for (uint i = 0; i < 3; i++) {
+    ) internal view returns (int256) {
+        int256 place = -1;
+        for (uint256 i = 0; i < 3; i++) {
             bytes4 symbol = symbols[cycle.id].get(topThreeSymbols[cycle.id][i]);
             if (symbol == vote.symbol) {
-                topThreeSymbolsVote = true;
-                place = int(i);
+                place = int256(i);
                 break;
             }
         }
