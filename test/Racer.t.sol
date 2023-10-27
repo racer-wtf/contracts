@@ -1,25 +1,14 @@
 // SPDX-License-Identifier: MIT
-
-//  @
-//   )
-//  ( _m_
-//   \ " /,~~.
-//    `(''/.\)
-//     .>' (_--,
-//  _=/d  . ^\
-// ~' \)-'   '
-//   // |'
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.21;
 
 import "forge-std/Test.sol";
 import "forge-std/StdCheats.sol";
 import "forge-std/StdError.sol";
-import {FoundryRandom} from "foundry-random/FoundryRandom.sol";
 
-import "../src/Racer.sol" as Racer;
+import {Racer} from "../src/Racer.sol";
 
-contract Racer2Test is Test, FoundryRandom {
-    Racer.Racer market;
+contract RacerTest is Test {
+    Racer market;
 
     event CycleCreated(
         address indexed creator,
@@ -37,7 +26,7 @@ contract Racer2Test is Test, FoundryRandom {
     );
 
     function setUp() public {
-        market = new Racer.Racer();
+        market = new Racer();
     }
 
     function testCreateCycle(
@@ -210,17 +199,6 @@ contract Racer2Test is Test, FoundryRandom {
         vm.stopPrank();
     }
 
-    function randomString(uint size) internal returns (string memory) {
-        bytes memory randomWord = new bytes(size);
-        bytes memory chars = new bytes(26);
-        chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        for (uint i = 0; i < size; i++) {
-            uint randomNumber = randomNumber(25);
-            randomWord[i] = chars[randomNumber];
-        }
-        return string(randomWord);
-    }
-
     function convertBytesToBytes4(
         bytes memory inBytes
     ) internal pure returns (bytes4 outBytes4) {
@@ -233,22 +211,26 @@ contract Racer2Test is Test, FoundryRandom {
         }
     }
 
-    function testIntegrationPlaceVotes() public {
-        uint256 blockLength = randomNumber(50, 100);
+    function testIntegrationPlaceVotes(
+        uint256 blockLength,
+        uint256 voterCount,
+        uint256 symbolCount,
+        bytes4 symbol
+    ) public {
+        blockLength = bound(blockLength, 50, 100);
+
         address god = address(0);
         vm.prank(god);
         market.createCycle(0, blockLength, 1 ether);
 
-        uint256 voterCount = randomNumber(50, 500);
+        voterCount = bound(voterCount, 50, 100);
         console.log("count of voters:", voterCount);
-        uint256 symbolCount = randomNumber(5, 25);
+        symbolCount = bound(symbolCount, 5, 25);
         address[] memory voters = new address[](voterCount);
         bytes4[] memory symbols = new bytes4[](symbolCount);
 
         for (uint i = 0; i < symbolCount; i++) {
-            symbols[i] = convertBytesToBytes4(
-                abi.encodePacked(randomString(4))
-            );
+            symbols[i] = convertBytesToBytes4(abi.encodePacked(symbol));
             // console.log(string(abi.encodePacked(symbols[i])));
         }
         for (uint160 i = 0; i < voterCount; i++) {
@@ -259,16 +241,27 @@ contract Racer2Test is Test, FoundryRandom {
 
         // place votes
         for (uint256 i = 0; i < voters.length; i++) {
-            uint256 voteCount = randomNumber(10);
+            // random number modulo 10
+            uint256 voteCount = uint256(
+                keccak256(abi.encodePacked(block.timestamp, i))
+            ) % 10;
+
             votes[i] = new uint256[](voteCount);
             vm.deal(voters[i], (voteCount) * 10 ** 18);
             uint256 currentBlock = 0;
             vm.roll(0);
             vm.startPrank(voters[i]);
             for (uint256 j = 0; j < voteCount; j++) {
-                currentBlock += randomNumber(blockLength / voteCount);
+                // currentBlock += randomNumber(blockLength / voteCount);
+                currentBlock += blockLength / voteCount;
                 vm.roll(currentBlock);
-                bytes4 randomSymbol = symbols[randomNumber(symbols.length - 1)];
+                bytes4 randomSymbol = symbols[
+                    uint256(
+                        keccak256(
+                            abi.encodePacked(block.timestamp, i, j)
+                        )
+                    ) % symbolCount
+                ];
                 votes[i][j] = market.placeVote{value: 1 ether}(0, randomSymbol);
             }
             vm.stopPrank();

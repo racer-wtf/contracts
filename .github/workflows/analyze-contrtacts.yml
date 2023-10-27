@@ -1,0 +1,24 @@
+name: Analyze smart contracts
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{github.workflow}}-${{github.ref}}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Slither static analyser
+        uses: crytic/slither-action@v0.3.0
+        continue-on-error: true
+        with:
+          node-version: ${{ matrix.node_version }}
+          target: 'contracts/src/Racer.sol'

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.21;
 
 import "abdk-libraries-solidity/ABDKMath64x64.sol";
 import "bytes4set/Bytes4Set.sol";
-import "openzeppelin-contracts/contracts/utils/Address.sol";
-import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import "openzeppelin-contracts/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract Racer is ReentrancyGuard {
     using Math for uint256;
@@ -97,8 +97,6 @@ contract Racer is ReentrancyGuard {
 
     // cycle id -> vote id -> vote
     mapping(uint256 => mapping(uint256 => Vote)) votes;
-
-    constructor() {}
 
     // Places votes based on how much wei was sent
     function placeVote(
