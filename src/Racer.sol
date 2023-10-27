@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.21;
 
 import "abdk-libraries-solidity/ABDKMath64x64.sol";
 import "bytes4set/Bytes4Set.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract Racer is ReentrancyGuard {
-    using SafeMath for uint256;
+    using Math for uint256;
     using ABDKMath64x64 for int128;
-    using Counters for Counters.Counter;
     using Bytes4Set for Bytes4Set.Set;
 
     struct Vote {
@@ -43,7 +41,7 @@ contract Racer is ReentrancyGuard {
         // the address of the cycle creator
         address creator;
         // vote id counter for this cycle
-        Counters.Counter voteIdCounter;
+        uint256 voteIdCounter;
         // flag for checking existence of cycle
         bool exists;
         // current reward pool balance
@@ -95,12 +93,10 @@ contract Racer is ReentrancyGuard {
     // cycle id -> cycle
     mapping(uint256 => Cycle) cycles;
 
-    Counters.Counter cycleIdCounter;
+    uint256 cycleIdCounter;
 
     // cycle id -> vote id -> vote
     mapping(uint256 => mapping(uint256 => Vote)) votes;
-
-    constructor() {}
 
     // Places votes based on how much wei was sent
     function placeVote(
@@ -119,8 +115,7 @@ contract Racer is ReentrancyGuard {
             "incorrect wei amount for this cycle"
         );
         Cycle storage cycle = cycles[cycleId];
-        uint256 voteId = cycle.voteIdCounter.current();
-        cycle.voteIdCounter.increment();
+        uint256 voteId = cycle.voteIdCounter++;
         votes[cycleId][voteId] = Vote(
             voteId,
             symbol,
@@ -173,14 +168,14 @@ contract Racer is ReentrancyGuard {
     ) public returns (uint256) {
         require(votePrice > 0, "vote price must be greater than 0");
 
-        uint256 cycleId = cycleIdCounter.current();
+        uint256 cycleId = cycleIdCounter;
         cycles[cycleId] = Cycle(
             cycleId,
             startingBlock,
             startingBlock + blockLength,
             votePrice,
             msg.sender,
-            Counters.Counter(0),
+            0,
             true,
             0,
             0,
@@ -194,7 +189,7 @@ contract Racer is ReentrancyGuard {
             blockLength,
             votePrice
         );
-        cycleIdCounter.increment();
+        cycleIdCounter++;
         return cycleId;
     }
 
@@ -290,7 +285,7 @@ contract Racer is ReentrancyGuard {
 
         normalizationFactor = ABDKMath64x64.div(
             normalizationFactor,
-            ABDKMath64x64.fromUInt(cycle.voteIdCounter.current())
+            ABDKMath64x64.fromUInt(cycle.voteIdCounter)
         );
         normalizationFactor = ABDKMath64x64.div(
             ABDKMath64x64.fromUInt(1),
@@ -345,7 +340,7 @@ contract Racer is ReentrancyGuard {
     }
 
     function getBaseReward(Cycle storage cycle) internal view returns (int128) {
-        return ABDKMath64x64.divu(cycle.balance, cycle.voteIdCounter.current());
+        return ABDKMath64x64.divu(cycle.balance, cycle.voteIdCounter);
     }
 
     function getVotePlace(
@@ -449,7 +444,12 @@ contract Racer is ReentrancyGuard {
         }
         int128 normalizedReward = calculateReward(cycleId, voteId);
         uint64 reward = ABDKMath64x64.toUInt(normalizedReward);
-        cycle.balance = cycle.balance.sub(reward);
+        (bool overflow, uint256 newCycleBalance) = cycle.balance.trySub(reward);
+        if (overflow) {
+            cycle.balance = 0;
+        } else {
+            cycle.balance = newCycleBalance;
+        }
         vote.claimed = true;
         Address.sendValue(payable(msg.sender), reward);
         emit VoteClaimed(msg.sender, cycleId, vote.symbol, reward);
@@ -482,7 +482,7 @@ contract Racer is ReentrancyGuard {
     }
 
     function totalVoteCount(uint256 cycleId) public view returns (uint) {
-        return cycles[cycleId].voteIdCounter.current();
+        return cycles[cycleId].voteIdCounter;
     }
 
     function cycleRewardPoolBalance(
