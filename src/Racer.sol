@@ -12,6 +12,52 @@ contract Racer is ReentrancyGuard {
     using ABDKMath64x64 for int128;
     using Bytes4Set for Bytes4Set.Set;
 
+    // State variables
+
+    // cycle id -> symbol -> vote id array
+    mapping(uint256 => mapping(bytes4 => uint256[])) votesMeta;
+
+    // store here top three most voted symbols (for caching purposes)
+    // we use pointers to the symbol set items
+    mapping(uint256 => uint256[3]) topThreeSymbols;
+
+    // cycle id -> symbols people voted for
+    mapping(uint256 => Bytes4Set.Set) symbols;
+
+    // cycle id -> cycle
+    mapping(uint256 => Cycle) cycles;
+
+    uint256 cycleIdCounter;
+
+    // cycle id -> vote id -> vote
+    mapping(uint256 => mapping(uint256 => Vote)) votes;
+
+    // Events
+
+    event CycleCreated(
+        address indexed creator,
+        uint256 indexed id,
+        uint256 startingBlock,
+        uint256 blockLength,
+        uint256 votePrice
+    );
+
+    event VotePlaced(
+        address indexed placer,
+        uint256 voteId,
+        uint256 indexed cycleId,
+        bytes4 indexed symbol
+    );
+
+    event VoteClaimed(
+        address indexed claimer,
+        uint256 indexed cycleId,
+        bytes4 indexed symbol,
+        uint256 amount
+    );
+
+    // Structs
+
     /**
      * @dev Struct representing a vote.
      * @param voteId The unique identifier for the vote.
@@ -70,45 +116,7 @@ contract Racer is ReentrancyGuard {
         uint256 pointer;
     }
 
-    event CycleCreated(
-        address indexed creator,
-        uint256 indexed id,
-        uint256 startingBlock,
-        uint256 blockLength,
-        uint256 votePrice
-    );
-
-    event VotePlaced(
-        address indexed placer,
-        uint256 voteId,
-        uint256 indexed cycleId,
-        bytes4 indexed symbol
-    );
-
-    event VoteClaimed(
-        address indexed claimer,
-        uint256 indexed cycleId,
-        bytes4 indexed symbol,
-        uint256 amount
-    );
-
-    // cycle id -> symbol -> vote id array
-    mapping(uint256 => mapping(bytes4 => uint256[])) votesMeta;
-
-    // store here top three most voted symbols (for caching purposes)
-    // we use pointers to the symbol set items
-    mapping(uint256 => uint256[3]) topThreeSymbols;
-
-    // cycle id -> symbols people voted for
-    mapping(uint256 => Bytes4Set.Set) symbols;
-
-    // cycle id -> cycle
-    mapping(uint256 => Cycle) cycles;
-
-    uint256 cycleIdCounter;
-
-    // cycle id -> vote id -> vote
-    mapping(uint256 => mapping(uint256 => Vote)) votes;
+    // Public functions
 
     /**
      * @dev Places votes based on how much wei was sent.
@@ -152,33 +160,6 @@ contract Racer is ReentrancyGuard {
 
         emit VotePlaced(msg.sender, voteId, cycleId, symbol);
         return voteId;
-    }
-
-    /**
-     * @dev Updates the top three most voted symbols for a cycle.
-     * @param cycleId The cycle ID to update the top symbols for.
-     */
-    function updateTopThreeSymbols(uint256 cycleId) internal {
-        Symbol memory first = Symbol("", 0, 0);
-        Symbol memory second = Symbol("", 0, 0);
-        Symbol memory third = Symbol("", 0, 0);
-        for (uint i = 0; i < symbols[cycleId].count(); i++) {
-            bytes4 symbol = symbols[cycleId].get(i);
-            uint256 voteCount = votesMeta[cycleId][symbol].length;
-            if (voteCount > first.voteCount) {
-                second = first;
-                first = Symbol(symbol, voteCount, i);
-            } else if (voteCount > second.voteCount) {
-                third = second;
-                second = Symbol(symbol, voteCount, i);
-            } else if (voteCount > third.voteCount) {
-                third = Symbol(symbol, voteCount, i);
-            }
-        }
-
-        topThreeSymbols[cycleId][0] = first.pointer;
-        topThreeSymbols[cycleId][1] = second.pointer;
-        topThreeSymbols[cycleId][2] = third.pointer;
     }
 
     /**
@@ -334,96 +315,6 @@ contract Racer is ReentrancyGuard {
             normalizationFactor
         );
         return normalizationFactor;
-    }
-
-    /**
-     * @dev Calculates the timeliness of a vote within a cycle.
-     * @param cycle The Cycle storage struct.
-     * @param vote The Vote storage struct.
-     * @return timeliness The calculated timeliness of the vote.
-     */
-    function getVoteTimeliness(
-        Cycle storage cycle,
-        Vote storage vote
-    ) internal view returns (int128) {
-        return
-            ABDKMath64x64.divu(
-                vote.placedInBlock - cycle.startingBlock,
-                cycle.endingBlock - cycle.startingBlock
-            );
-    }
-
-    /**
-     * @dev Calculates the reward point for a vote within a cycle.
-     * @param cycle The Cycle storage struct.
-     * @param vote The Vote storage struct.
-     * @param place The place of the vote among the top three symbols.
-     * @return rewardPoint The calculated reward point for the vote.
-     */
-    function calculatePoint(
-        Cycle storage cycle,
-        Vote storage vote,
-        uint place
-    ) internal view returns (int128) {
-        require(place >= 0 && place <= 2, "incorrect place value");
-        int128 timeliness = getVoteTimeliness(cycle, vote);
-        int128 rewardPoint;
-        if (place == 0) {
-            rewardPoint = ABDKMath64x64.pow(
-                ABDKMath64x64.sub(timeliness, ABDKMath64x64.fromUInt(1)),
-                2
-            );
-        } else if (place == 1) {
-            rewardPoint = ABDKMath64x64.pow(
-                ABDKMath64x64.sub(
-                    ABDKMath64x64.div(timeliness, ABDKMath64x64.fromUInt(2)),
-                    ABDKMath64x64.divu(1, 2)
-                ),
-                2
-            );
-        } else if (place == 2) {
-            rewardPoint = ABDKMath64x64.pow(
-                ABDKMath64x64.sub(
-                    ABDKMath64x64.div(timeliness, ABDKMath64x64.fromUInt(3)),
-                    ABDKMath64x64.divu(1, 3)
-                ),
-                2
-            );
-        }
-
-        return rewardPoint;
-    }
-
-    /**
-     * @dev Calculates the base reward for a cycle.
-     * @param cycle The Cycle storage struct.
-     * @return baseReward The calculated base reward for the cycle.
-     */
-    function getBaseReward(Cycle storage cycle) internal view returns (int128) {
-        return ABDKMath64x64.divu(cycle.balance, cycle.voteIdCounter);
-    }
-
-    /**
-     * @dev Gets the place of a vote within the top three symbols of a cycle.
-     * @param cycle The Cycle storage struct.
-     * @param vote The Vote storage struct.
-     * @return place The place of the vote (0, 1, or 2) or -1 if not in the top three.
-     */
-    function getVotePlace(
-        Cycle storage cycle,
-        Vote storage vote
-    ) internal view returns (int) {
-        bool topThreeSymbolsVote = false;
-        int place = -1;
-        for (uint i = 0; i < 3; i++) {
-            bytes4 symbol = symbols[cycle.id].get(topThreeSymbols[cycle.id][i]);
-            if (symbol == vote.symbol) {
-                topThreeSymbolsVote = true;
-                place = int(i);
-                break;
-            }
-        }
-        return place;
     }
 
     /**
@@ -595,5 +486,124 @@ contract Racer is ReentrancyGuard {
         uint256 cycleId
     ) public view returns (uint256) {
         return cycles[cycleId].balance;
+    }
+
+    // Internal function
+
+    /**
+     * @dev Updates the top three most voted symbols for a cycle.
+     * @param cycleId The cycle ID to update the top symbols for.
+     */
+    function updateTopThreeSymbols(uint256 cycleId) internal {
+        Symbol memory first = Symbol("", 0, 0);
+        Symbol memory second = Symbol("", 0, 0);
+        Symbol memory third = Symbol("", 0, 0);
+        for (uint i = 0; i < symbols[cycleId].count(); i++) {
+            bytes4 symbol = symbols[cycleId].get(i);
+            uint256 voteCount = votesMeta[cycleId][symbol].length;
+            if (voteCount > first.voteCount) {
+                second = first;
+                first = Symbol(symbol, voteCount, i);
+            } else if (voteCount > second.voteCount) {
+                third = second;
+                second = Symbol(symbol, voteCount, i);
+            } else if (voteCount > third.voteCount) {
+                third = Symbol(symbol, voteCount, i);
+            }
+        }
+
+        topThreeSymbols[cycleId][0] = first.pointer;
+        topThreeSymbols[cycleId][1] = second.pointer;
+        topThreeSymbols[cycleId][2] = third.pointer;
+    }
+
+    /**
+     * @dev Calculates the timeliness of a vote within a cycle.
+     * @param cycle The Cycle storage struct.
+     * @param vote The Vote storage struct.
+     * @return timeliness The calculated timeliness of the vote.
+     */
+    function getVoteTimeliness(
+        Cycle storage cycle,
+        Vote storage vote
+    ) internal view returns (int128) {
+        return
+            ABDKMath64x64.divu(
+                vote.placedInBlock - cycle.startingBlock,
+                cycle.endingBlock - cycle.startingBlock
+            );
+    }
+
+    /**
+     * @dev Calculates the reward point for a vote within a cycle.
+     * @param cycle The Cycle storage struct.
+     * @param vote The Vote storage struct.
+     * @param place The place of the vote among the top three symbols.
+     * @return rewardPoint The calculated reward point for the vote.
+     */
+    function calculatePoint(
+        Cycle storage cycle,
+        Vote storage vote,
+        uint place
+    ) internal view returns (int128) {
+        require(place >= 0 && place <= 2, "incorrect place value");
+        int128 timeliness = getVoteTimeliness(cycle, vote);
+        int128 rewardPoint;
+        if (place == 0) {
+            rewardPoint = ABDKMath64x64.pow(
+                ABDKMath64x64.sub(timeliness, ABDKMath64x64.fromUInt(1)),
+                2
+            );
+        } else if (place == 1) {
+            rewardPoint = ABDKMath64x64.pow(
+                ABDKMath64x64.sub(
+                    ABDKMath64x64.div(timeliness, ABDKMath64x64.fromUInt(2)),
+                    ABDKMath64x64.divu(1, 2)
+                ),
+                2
+            );
+        } else if (place == 2) {
+            rewardPoint = ABDKMath64x64.pow(
+                ABDKMath64x64.sub(
+                    ABDKMath64x64.div(timeliness, ABDKMath64x64.fromUInt(3)),
+                    ABDKMath64x64.divu(1, 3)
+                ),
+                2
+            );
+        }
+
+        return rewardPoint;
+    }
+
+    /**
+     * @dev Calculates the base reward for a cycle.
+     * @param cycle The Cycle storage struct.
+     * @return baseReward The calculated base reward for the cycle.
+     */
+    function getBaseReward(Cycle storage cycle) internal view returns (int128) {
+        return ABDKMath64x64.divu(cycle.balance, cycle.voteIdCounter);
+    }
+
+    /**
+     * @dev Gets the place of a vote within the top three symbols of a cycle.
+     * @param cycle The Cycle storage struct.
+     * @param vote The Vote storage struct.
+     * @return place The place of the vote (0, 1, or 2) or -1 if not in the top three.
+     */
+    function getVotePlace(
+        Cycle storage cycle,
+        Vote storage vote
+    ) internal view returns (int) {
+        bool topThreeSymbolsVote = false;
+        int place = -1;
+        for (uint i = 0; i < 3; i++) {
+            bytes4 symbol = symbols[cycle.id].get(topThreeSymbols[cycle.id][i]);
+            if (symbol == vote.symbol) {
+                topThreeSymbolsVote = true;
+                place = int(i);
+                break;
+            }
+        }
+        return place;
     }
 }
