@@ -12,46 +12,58 @@ contract Racer is ReentrancyGuard {
     using ABDKMath64x64 for int128;
     using Bytes4Set for Bytes4Set.Set;
 
+    /**
+     * @dev Struct representing a vote.
+     * @param voteId The unique identifier for the vote.
+     * @param symbol The four-byte symbol voted for.
+     * @param placer The address that placed the vote.
+     * @param claimed Represents if the reward was claimed or not.
+     * @param cycleId The cycle the vote belongs to.
+     * @param placedInBlock The block number in which this vote was placed.
+     * @param exists Flag for checking the existence of the vote.
+     */
     struct Vote {
-        // vote id (restricted to current cycle)
         uint256 voteId;
-        // four byte symbol of the vote
         bytes4 symbol;
-        // the address that placed the vote
         address placer;
-        // represents if the reward was claimed or not
         bool claimed;
-        // the cycle the vote belongs to
         uint256 cycleId;
-        // block number in which this vote placed
         uint256 placedInBlock;
-        // flag for checking existence of vote
         bool exists;
     }
 
+    /**
+     * @dev Struct representing a cycle.
+     * @param id The unique identifier for the cycle.
+     * @param startingBlock The current cycle's starting block.
+     * @param endingBlock The block number when the cycle ends.
+     * @param votePrice The cost of one vote in wei.
+     * @param creator The address of the cycle creator.
+     * @param voteIdCounter Vote id counter for this cycle.
+     * @param exists Flag for checking the existence of the cycle.
+     * @param balance Current reward pool balance.
+     * @param baseReward The final base reward.
+     * @param normalizationFactor The final normalization factor for the cycle.
+     */
     struct Cycle {
-        // cycle id
         uint256 id;
-        // the current cycle's starting block
         uint256 startingBlock;
-        // amount of blocks the cycle will run for
         uint256 endingBlock;
-        // the cost of one vote in wei
         uint256 votePrice;
-        // the address of the cycle creator
         address creator;
-        // vote id counter for this cycle
         uint256 voteIdCounter;
-        // flag for checking existence of cycle
         bool exists;
-        // current reward pool balance
         uint256 balance;
-        // the final base reward
         int128 baseReward;
-        // the final normalization factor for the cycle
         int128 normalizationFactor;
     }
 
+    /**
+     * @dev Struct representing a symbol.
+     * @param symbol The four-byte symbol.
+     * @param voteCount The number of votes for this symbol.
+     * @param pointer Pointer to the symbol set item.
+     */
     struct Symbol {
         bytes4 symbol;
         uint256 voteCount;
@@ -98,7 +110,12 @@ contract Racer is ReentrancyGuard {
     // cycle id -> vote id -> vote
     mapping(uint256 => mapping(uint256 => Vote)) votes;
 
-    // Places votes based on how much wei was sent
+    /**
+     * @dev Places votes based on how much wei was sent.
+     * @param cycleId The cycle ID for which the vote is placed.
+     * @param symbol The four-byte symbol to vote for.
+     * @return voteId The unique identifier for the vote.
+     */
     function placeVote(
         uint256 cycleId,
         bytes4 symbol
@@ -137,7 +154,10 @@ contract Racer is ReentrancyGuard {
         return voteId;
     }
 
-    // update top three most voted symbols
+    /**
+     * @dev Updates the top three most voted symbols for a cycle.
+     * @param cycleId The cycle ID to update the top symbols for.
+     */
     function updateTopThreeSymbols(uint256 cycleId) internal {
         Symbol memory first = Symbol("", 0, 0);
         Symbol memory second = Symbol("", 0, 0);
@@ -161,6 +181,13 @@ contract Racer is ReentrancyGuard {
         topThreeSymbols[cycleId][2] = third.pointer;
     }
 
+    /**
+     * @dev Creates a new voting cycle.
+     * @param startingBlock The block number when the cycle starts.
+     * @param blockLength The number of blocks the cycle will run for.
+     * @param votePrice The cost of one vote in wei.
+     * @return cycleId The unique identifier for the created cycle.
+     */
     function createCycle(
         uint256 startingBlock,
         uint256 blockLength,
@@ -193,6 +220,16 @@ contract Racer is ReentrancyGuard {
         return cycleId;
     }
 
+    /**
+     * @dev Gets information about a cycle.
+     * @param cycleId The cycle ID to retrieve information for.
+     * @return startingBlock The starting block of the cycle.
+     * @return endingBlock The ending block of the cycle.
+     * @return votePrice The cost of one vote in wei.
+     * @return creator The address of the cycle creator.
+     * @return balance The current reward pool balance.
+     * @return totalVotes The total number of votes in the cycle.
+     */
     function getCycle(
         uint256 cycleId
     )
@@ -219,7 +256,12 @@ contract Racer is ReentrancyGuard {
         }
     }
 
-    // WARN! This function should be called only once cuz it's very expensive on gas
+    /**
+     * @dev Calculates the normalized factor for a cycle, which is used to calculate rewards.
+     * @notice This function is very gas-costly and should be called only once per cycle.
+     * @param cycleId The cycle ID to calculate the normalized factor for.
+     * @return normalizationFactor The calculated normalization factor.
+     */
     function calculateNormalizedFactor(
         uint256 cycleId
     ) public view returns (int128) {
@@ -294,6 +336,12 @@ contract Racer is ReentrancyGuard {
         return normalizationFactor;
     }
 
+    /**
+     * @dev Calculates the timeliness of a vote within a cycle.
+     * @param cycle The Cycle storage struct.
+     * @param vote The Vote storage struct.
+     * @return timeliness The calculated timeliness of the vote.
+     */
     function getVoteTimeliness(
         Cycle storage cycle,
         Vote storage vote
@@ -305,6 +353,13 @@ contract Racer is ReentrancyGuard {
             );
     }
 
+    /**
+     * @dev Calculates the reward point for a vote within a cycle.
+     * @param cycle The Cycle storage struct.
+     * @param vote The Vote storage struct.
+     * @param place The place of the vote among the top three symbols.
+     * @return rewardPoint The calculated reward point for the vote.
+     */
     function calculatePoint(
         Cycle storage cycle,
         Vote storage vote,
@@ -339,10 +394,21 @@ contract Racer is ReentrancyGuard {
         return rewardPoint;
     }
 
+    /**
+     * @dev Calculates the base reward for a cycle.
+     * @param cycle The Cycle storage struct.
+     * @return baseReward The calculated base reward for the cycle.
+     */
     function getBaseReward(Cycle storage cycle) internal view returns (int128) {
         return ABDKMath64x64.divu(cycle.balance, cycle.voteIdCounter);
     }
 
+    /**
+     * @dev Gets the place of a vote within the top three symbols of a cycle.
+     * @param cycle The Cycle storage struct.
+     * @param vote The Vote storage struct.
+     * @return place The place of the vote (0, 1, or 2) or -1 if not in the top three.
+     */
     function getVotePlace(
         Cycle storage cycle,
         Vote storage vote
@@ -360,6 +426,12 @@ contract Racer is ReentrancyGuard {
         return place;
     }
 
+    /**
+     * @dev Calculates the normalized reward for a vote within a cycle.
+     * @param cycleId The cycle ID the vote belongs to.
+     * @param voteId The unique identifier for the vote.
+     * @return normalizedReward The calculated normalized reward for the vote.
+     */
     function calculateReward(
         uint256 cycleId,
         uint256 voteId
@@ -385,6 +457,12 @@ contract Racer is ReentrancyGuard {
         return normalizedReward;
     }
 
+    /**
+     * @dev Checks if claiming a reward for a vote is available.
+     * @param cycleId The cycle ID the vote belongs to.
+     * @param voteId The unique identifier for the vote.
+     * @return available True if claiming the reward is available, false otherwise.
+     */
     function isClaimingRewardAvailable(
         uint256 cycleId,
         uint256 voteId
@@ -409,6 +487,11 @@ contract Racer is ReentrancyGuard {
         return true;
     }
 
+    /**
+     * @dev Claims the reward for a vote in a cycle.
+     * @param cycleId The cycle ID the vote belongs to.
+     * @param voteId The unique identifier for the vote.
+     */
     function claimReward(uint256 cycleId, uint256 voteId) public nonReentrant {
         require(cycles[cycleId].exists, "invalid cycle");
         Cycle storage cycle = cycles[cycleId];
@@ -455,6 +538,12 @@ contract Racer is ReentrancyGuard {
         emit VoteClaimed(msg.sender, cycleId, vote.symbol, reward);
     }
 
+    /**
+     * @dev Retrieves the number of votes for a specific symbol in a cycle.
+     * @param cycleId The cycle ID to query.
+     * @param symbol The four-byte symbol to check for vote count.
+     * @return voteCount The number of votes for the specified symbol.
+     */
     function symbolVoteCount(
         uint256 cycleId,
         bytes4 symbol
@@ -462,6 +551,13 @@ contract Racer is ReentrancyGuard {
         return votesMeta[cycleId][symbol].length;
     }
 
+    /**
+     * @dev Retrieves the top three most voted symbols for a cycle.
+     * @param cycleId The cycle ID to query.
+     * @return first The most voted symbol.
+     * @return second The second most voted symbol.
+     * @return third The third most voted symbol.
+     */
     function getTopThreeSymbols(
         uint256 cycleId
     )
@@ -481,10 +577,20 @@ contract Racer is ReentrancyGuard {
         );
     }
 
+    /**
+     * @dev Retrieves the total number of votes in a cycle.
+     * @param cycleId The cycle ID to query.
+     * @return totalVotes The total number of votes in the specified cycle.
+     */
     function totalVoteCount(uint256 cycleId) public view returns (uint) {
         return cycles[cycleId].voteIdCounter;
     }
 
+    /**
+     * @dev Retrieves the current balance of the reward pool for a cycle.
+     * @param cycleId The cycle ID to query.
+     * @return balance The current balance of the reward pool.
+     */
     function cycleRewardPoolBalance(
         uint256 cycleId
     ) public view returns (uint256) {
