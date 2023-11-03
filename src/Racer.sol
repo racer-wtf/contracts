@@ -202,7 +202,7 @@ contract Racer is ReentrancyGuard {
     ) public returns (uint256) {
         if (votePrice == 0) revert InvalidVotePrice();
 
-        uint256 cycleId = cycleIdCounter;
+        uint256 cycleId = cycleIdCounter++;
         cycles[cycleId] = Cycle(
             cycleId,
             startingBlock,
@@ -223,7 +223,6 @@ contract Racer is ReentrancyGuard {
             blockLength,
             votePrice
         );
-        cycleIdCounter++;
         return cycleId;
     }
 
