@@ -15,6 +15,7 @@
   "scripts": {
     "test": "forge test --ffi -vvv --root . -C contracts/src --match-path \"contracts/test/*\" --out forge-artifacts",
     "build": "forge build --root . -C contracts/src --optimize --out forge-artifacts",
+    "go_bindings": "yarn run build && jq '.abi' ./forge-artifacts/Racer.sol/Racer.json | abigen --abi - --pkg contract --out forge-artifacts/racer.go",
     "prettier:check": "prettier --plugin=prettier-plugin-solidity -c **/*.{js,md,sol,json}",
     "prettier:fix": "prettier --plugin=prettier-plugin-solidity -w **/*.{js,md,sol,json}",
     "solhint:check": "yarn dlx solhint 'contracts/**/*.sol'",
