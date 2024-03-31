@@ -44,14 +44,15 @@ contract Racer is ReentrancyGuard {
 
     event VotePlaced(
         address indexed placer,
-        uint256 voteId,
+        uint256 indexed voteId,
         uint256 indexed cycleId,
         bytes4 indexed symbol
     );
 
     event VoteClaimed(
-        address indexed claimer,
         uint256 indexed cycleId,
+        uint256 indexed voteId,
+        address indexed claimer,
         bytes4 indexed symbol,
         uint256 amount
     );
@@ -457,7 +458,7 @@ contract Racer is ReentrancyGuard {
         }
         vote.claimed = true;
         Address.sendValue(payable(msg.sender), reward);
-        emit VoteClaimed(msg.sender, cycleId, vote.symbol, reward);
+        emit VoteClaimed(cycleId, voteId, msg.sender, vote.symbol, reward);
     }
 
     /**
