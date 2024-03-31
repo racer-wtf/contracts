@@ -46,14 +46,14 @@ contract Racer is ReentrancyGuard {
         address indexed placer,
         uint256 indexed voteId,
         uint256 indexed cycleId,
-        bytes4 indexed symbol
+        bytes4 symbol
     );
 
     event VoteClaimed(
         uint256 indexed cycleId,
         uint256 indexed voteId,
         address indexed claimer,
-        bytes4 indexed symbol,
+        bytes4 symbol,
         uint256 amount
     );
 
