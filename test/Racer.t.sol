@@ -20,9 +20,9 @@ contract RacerTest is Test {
 
     event VotePlaced(
         address indexed placer,
-        uint256 voteId,
+        uint256 indexed voteId,
         uint256 indexed cycleId,
-        bytes4 indexed symbol
+        bytes4 symbol
     );
 
     function setUp() public {
