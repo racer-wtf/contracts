@@ -89,8 +89,6 @@ contract Racer is ReentrancyGuard {
      * @param voteIdCounter Vote id counter for this cycle.
      * @param exists Flag for checking the existence of the cycle.
      * @param balance Current reward pool balance.
-     * @param baseReward The final base reward.
-     * @param normalizationFactor The final normalization factor for the cycle.
      */
     struct Cycle {
         uint256 id;
@@ -101,8 +99,6 @@ contract Racer is ReentrancyGuard {
         uint256 voteIdCounter;
         bool exists;
         uint256 balance;
-        int128 baseReward;
-        int128 normalizationFactor;
     }
 
     /**
@@ -125,14 +121,10 @@ contract Racer is ReentrancyGuard {
     error CycleDidntEnd(uint256 cycleId);
     // @return cycleId The cycle ID for which the vote is placed.
     error CycleVotingIsUnavailable(uint256 cycleId);
-    // @dev When the base reward is 0 this is returned.
-    error InvalidBaseReward();
     // @return correctFee The correct fee for the vote.
     error InvalidVoteFee(uint256 correctFee);
     // @dev When the vote price is 0 this is returned.
     error InvalidVotePrice();
-    // @dev When the normalization factor is 0 this is returned.
-    error InvalidNormalizationFactor();
     // @dev When the vote is already claimed this is returned.
     error VoteAlreadyClaimed();
     // @return voteId The unique identifier for the vote.
@@ -212,8 +204,6 @@ contract Racer is ReentrancyGuard {
             msg.sender,
             0,
             true,
-            0,
-            0,
             0
         );
 
@@ -270,25 +260,22 @@ contract Racer is ReentrancyGuard {
     /**
      * @dev Calculates the normalized factor for a cycle, which is used to calculate rewards.
      * @notice This function is very gas-costly and should be called only once per cycle.
-     * @param cycleId The cycle ID to calculate the normalized factor for.
+     * @param cycle The cycle struct to calculate the normalized factor for.
      * @return normalizationFactor The calculated normalization factor.
      */
     function calculateNormalizedFactor(
-        uint256 cycleId
-    ) public view returns (int128) {
-        if (!cycles[cycleId].exists) revert CycleDoesntExist(cycleId);
-        if (cycles[cycleId].endingBlock > block.number)
-            revert CycleDidntEnd(cycleId);
-        Cycle storage cycle = cycles[cycleId];
-
+        Cycle storage cycle
+    ) internal view returns (int128) {
         int128 normalizationFactor = 0;
 
         // summing points from the first symbol
-        bytes4 firstSymbol = symbols[cycleId].get(topThreeSymbols[cycleId][0]);
-        uint256[] storage firstSymbolVotes = votesMeta[cycleId][firstSymbol];
+        bytes4 firstSymbol = symbols[cycle.id].get(
+            topThreeSymbols[cycle.id][0]
+        );
+        uint256[] storage firstSymbolVotes = votesMeta[cycle.id][firstSymbol];
         for (uint256 i = 0; i < firstSymbolVotes.length; ) {
-            Vote storage vote = votes[cycleId][
-                votesMeta[cycleId][firstSymbol][i]
+            Vote storage vote = votes[cycle.id][
+                votesMeta[cycle.id][firstSymbol][i]
             ];
             int128 rewardPoint = calculatePoint(cycle, vote, 0);
             normalizationFactor = ABDKMath64x64.add(
@@ -300,17 +287,17 @@ contract Racer is ReentrancyGuard {
             }
         }
 
-        if (topThreeSymbols[cycleId][0] != topThreeSymbols[cycleId][1]) {
+        if (topThreeSymbols[cycle.id][0] != topThreeSymbols[cycle.id][1]) {
             // summing points from the second symbol
-            bytes4 secondSymbol = symbols[cycleId].get(
-                topThreeSymbols[cycleId][1]
+            bytes4 secondSymbol = symbols[cycle.id].get(
+                topThreeSymbols[cycle.id][1]
             );
-            uint256[] storage secondSymbolVotes = votesMeta[cycleId][
+            uint256[] storage secondSymbolVotes = votesMeta[cycle.id][
                 secondSymbol
             ];
             for (uint256 i = 0; i < secondSymbolVotes.length; ) {
-                Vote storage vote = votes[cycleId][
-                    votesMeta[cycleId][secondSymbol][i]
+                Vote storage vote = votes[cycle.id][
+                    votesMeta[cycle.id][secondSymbol][i]
                 ];
                 int128 rewardPoint = calculatePoint(cycle, vote, 1);
                 normalizationFactor = ABDKMath64x64.add(
@@ -323,17 +310,17 @@ contract Racer is ReentrancyGuard {
             }
         }
 
-        if (topThreeSymbols[cycleId][0] != topThreeSymbols[cycleId][2]) {
+        if (topThreeSymbols[cycle.id][0] != topThreeSymbols[cycle.id][2]) {
             // summing points from the third symbol
-            bytes4 thirdSymbol = symbols[cycleId].get(
-                topThreeSymbols[cycleId][2]
+            bytes4 thirdSymbol = symbols[cycle.id].get(
+                topThreeSymbols[cycle.id][2]
             );
-            uint256[] storage thirdSymbolVotes = votesMeta[cycleId][
+            uint256[] storage thirdSymbolVotes = votesMeta[cycle.id][
                 thirdSymbol
             ];
             for (uint256 i = 0; i < thirdSymbolVotes.length; ) {
-                Vote storage vote = votes[cycleId][
-                    votesMeta[cycleId][thirdSymbol][i]
+                Vote storage vote = votes[cycle.id][
+                    votesMeta[cycle.id][thirdSymbol][i]
                 ];
                 int128 rewardPoint = calculatePoint(cycle, vote, 2);
                 normalizationFactor = ABDKMath64x64.add(
@@ -371,16 +358,17 @@ contract Racer is ReentrancyGuard {
         if (!votes[cycleId][voteId].exists) revert VoteDoesntExist(voteId);
         Cycle storage cycle = cycles[cycleId];
         Vote storage vote = votes[cycleId][voteId];
-        if (cycle.normalizationFactor == 0) revert InvalidNormalizationFactor();
-        if (cycle.baseReward == 0) revert InvalidBaseReward();
+
+        int128 normalizationFactor = calculateNormalizedFactor(cycle);
+        int128 baseReward = getBaseReward(cycle);
 
         int256 place = getVotePlace(cycle, vote);
         if (place == -1) revert VoteDidntPlace(voteId);
 
         int128 curvePoint = calculatePoint(cycle, vote, uint(place));
         int128 normalizedReward = ABDKMath64x64.mul(
-            ABDKMath64x64.mul(cycle.baseReward, curvePoint),
-            cycle.normalizationFactor
+            ABDKMath64x64.mul(baseReward, curvePoint),
+            normalizationFactor
         );
         return normalizedReward;
     }
@@ -442,12 +430,6 @@ contract Racer is ReentrancyGuard {
                 revert VoteNotPlacedByCaller(voteId, msg.sender);
         }
 
-        if (cycle.normalizationFactor == 0) {
-            cycle.normalizationFactor = calculateNormalizedFactor(cycleId); // this is expensive
-        }
-        if (cycle.baseReward == 0) {
-            cycle.baseReward = getBaseReward(cycle);
-        }
         int128 normalizedReward = calculateReward(cycleId, voteId);
         uint64 reward = ABDKMath64x64.toUInt(normalizedReward);
         (bool overflow, uint256 newCycleBalance) = cycle.balance.trySub(reward);
