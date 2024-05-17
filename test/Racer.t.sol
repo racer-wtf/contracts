@@ -263,10 +263,10 @@ contract RacerTest is Test {
 
         // place votes
         for (uint256 i = 0; i < voters.length; i++) {
-            // random number modulo 10
-            uint256 voteCount = uint256(
+            // random number [1;10]
+            uint256 voteCount = (uint256(
                 keccak256(abi.encodePacked(block.timestamp, i))
-            ) % 10;
+            ) % 10) + 1;
 
             votes[i] = new uint256[](voteCount);
             vm.deal(voters[i], (voteCount) * 10 ** 18);
@@ -318,19 +318,17 @@ contract RacerTest is Test {
         vm.roll(blockLength + 1);
         // claim vote rewards
         for (uint256 i = 0; i < voters.length; i++) {
-            for (uint256 j = 0; j < votes[i].length; j++) {
-                vm.startPrank(voters[i]);
-                if (market.isClaimingRewardAvailable(0, votes[i][j])) {
-                    market.claimReward(0, votes[i][j]);
-                    vm.stopPrank();
-                } else {
-                    vm.stopPrank();
-                    vm.startPrank(god);
-                    if (market.isClaimingRewardAvailable(0, votes[i][j])) {
-                        market.claimReward(0, votes[i][j]);
-                    }
-                    vm.stopPrank();
+            vm.startPrank(voters[i]);
+            if (market.isClaimingRewardAvailable(0, votes[i][0])) {
+                market.batchClaimReward(0, votes[i]);
+                vm.stopPrank();
+            } else {
+                vm.stopPrank();
+                vm.startPrank(god);
+                if (market.isClaimingRewardAvailable(0, votes[i][0])) {
+                    market.batchClaimReward(0, votes[i]);
                 }
+                vm.stopPrank();
             }
         }
         console.log(
@@ -383,38 +381,37 @@ contract RacerTest is Test {
 
         vm.roll(11);
         vm.startPrank(alice);
-        for (uint256 i = 0; i < aliceVotes.length; i++) {
-            console.log(
-                "[Alice] Claiming reward for vote id: %d",
-                aliceVotes[i]
-            );
-            market.claimReward(cycleId, aliceVotes[i]);
-        }
+        console.log("[Alice] Claiming rewards");
+        market.batchClaimReward(cycleId, aliceVotes);
         vm.stopPrank();
 
         vm.startPrank(bob);
-        for (uint256 i = 0; i < bobVotes.length; i++) {
-            console.log("[Bob] Claiming reward for vote id: %d", bobVotes[i]);
-            market.claimReward(cycleId, bobVotes[i]);
-        }
+        console.log("[Bob] Claiming rewards");
+        market.batchClaimReward(cycleId, bobVotes);
         vm.stopPrank();
 
         vm.startPrank(john);
+        uint256[] memory johnVotesClaiming = new uint256[](
+            johnVotes.length - 1
+        );
         for (uint256 i = 0; i < johnVotes.length - 1; i++) {
-            console.log("[John] Claiming reward for vote id: %d", johnVotes[i]);
-            market.claimReward(cycleId, johnVotes[i]);
+            johnVotesClaiming[i] = johnVotes[i];
         }
+        console.log("[John] Claiming rewards");
+        market.batchClaimReward(cycleId, johnVotesClaiming);
 
         // test late vote
         // mustn't be claimed
         uint256 lateVoteId = johnVotes[johnVotes.length - 1];
         vm.expectRevert();
-        market.claimReward(cycleId, lateVoteId);
+        uint256[] memory lateVoteIdArr = new uint256[](1);
+        lateVoteIdArr[0] = lateVoteId;
+        market.batchClaimReward(cycleId, lateVoteIdArr);
         vm.stopPrank();
 
         // should be claimed
         vm.startPrank(god);
-        market.claimReward(cycleId, lateVoteId);
+        market.batchClaimReward(cycleId, lateVoteIdArr);
         vm.stopPrank();
 
         console.log("Alice's balance: ", alice.balance);
