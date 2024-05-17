@@ -408,7 +408,7 @@ contract Racer is ReentrancyGuard {
      * @param cycleId The cycle ID the vote belongs to.
      * @param voteId The unique identifier for the vote.
      */
-    function claimReward(uint256 cycleId, uint256 voteId) internal {
+    function _claimReward(uint256 cycleId, uint256 voteId) internal {
         Cycle storage cycle = cycles[cycleId];
         if (!cycle.exists) revert CycleDoesntExist(cycleId);
         if (block.number <= cycle.endingBlock) revert CycleDidntEnd(cycleId);
@@ -442,8 +442,12 @@ contract Racer is ReentrancyGuard {
         uint256[] calldata voteIds
     ) public nonReentrant {
         for (uint256 i = 0; i < voteIds.length; i++) {
-            claimReward(cycleId, voteIds[i]);
+            _claimReward(cycleId, voteIds[i]);
         }
+    }
+
+    function claimReward(uint256 cycleId, uint256 voteId) public nonReentrant {
+        _claimReward(cycleId, voteId);
     }
 
     /**
