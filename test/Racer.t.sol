@@ -233,6 +233,7 @@ contract RacerTest is Test {
         }
     }
 
+    /// forge-config: default.fuzz.runs = 64
     function testIntegrationPlaceVotes(
         uint256 blockLength,
         uint256 voterCount,
